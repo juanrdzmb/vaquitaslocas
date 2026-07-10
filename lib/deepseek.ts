@@ -8,6 +8,65 @@ import {
 const API_URL = "https://api.deepseek.com/chat/completions";
 const MODEL = "deepseek-chat";
 
+function repairAndParseJSON(raw: string): Record<string, unknown> {
+  try {
+    return JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    // JSON truncado: intentar reparar cerrando brackets/llaves abiertas
+  }
+
+  let text = raw.trim();
+
+  // Quitar texto después del último cierre de objeto/array válido
+  // Buscar el último } o ] y cortar ahí
+  const lastBrace = Math.max(text.lastIndexOf("}"), text.lastIndexOf("]"));
+  if (lastBrace > 0) {
+    text = text.slice(0, lastBrace + 1);
+  }
+
+  // Contar brackets/llaves abiertas y cerrarlas
+  const stack: string[] = [];
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+
+    if (ch === "{" || ch === "[") stack.push(ch);
+    else if (ch === "}" || ch === "]") stack.pop();
+  }
+
+  // Si estamos dentro de un string, cerrarlo
+  if (inString) text += '"';
+
+  // Cerrar brackets abiertos en orden inverso
+  while (stack.length > 0) {
+    const open = stack.pop();
+    text += open === "{" ? "}" : "]";
+  }
+
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    throw new Error(
+      "El JSON generado se truncó por tamaño. Intenta con un Excel más pequeño o simplificado."
+    );
+  }
+}
+
 function getApiKey(): string {
   const key = process.env.DEEPSEEK_API_KEY;
   if (!key) {
@@ -37,7 +96,8 @@ Reglas:
 9. Asigna coordenadas (lat, lng) a cada stop del itinerario, a cada recomendación, a cada hotel y a cada segmento de transporte cuando sea posible. Sé conservador: si no estás seguro de las coordenadas exactas, pon null antes que inventar.
 10. Escribe un overview evocador (2-4 frases), highlights en frases cortas, y 5-8 tips prácticos (transporte, cultura, seguridad, ahorro, etiqueta local) — siempre en primera persona, como si le estuvieras contando a Amanda.
 11. TODO en español, tono editorial cálido y sofisticado, NO turístico cliché.
-12. Devuelve EXCLUSIVAMENTE JSON válido que cumpla el esquema. Sin markdown, sin explicaciones fuera del JSON.`;
+12. SÉ CONCISO: descriptions y reasons de máximo 1-2 frases. No te enrolas. Cuanto más corto el JSON, menos probable que se corte.
+13. Devuelve EXCLUSIVAMENTE JSON válido que cumpla el esquema. Sin markdown, sin explicaciones fuera del JSON.`;
 
 const STRUCTURE_SCHEMA_HINT = `Esquema del JSON a devolver:
 {
@@ -139,14 +199,14 @@ export async function structureTripWithAI(
       { role: "user", content: userPrompt },
     ],
     response_format: { type: "json_object" },
-    temperature: 0.7,
-    max_tokens: 8000,
+    temperature: 0.5,
+    max_tokens: 8192,
   });
 
   const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error("DeepSeek no devolvió contenido.");
+  if (!content) throw new Error("No se recibió contenido del modelo.");
 
-  const parsed = JSON.parse(content) as Record<string, unknown>;
+  const parsed = repairAndParseJSON(content);
 
   const recommendations: Recommendation[] = Array.isArray(
     parsed.recommendations

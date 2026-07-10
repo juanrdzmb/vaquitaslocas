@@ -20,17 +20,17 @@ export async function parseExcelFile(file: File): Promise<RawSheet[]> {
 export function summarizeSheetsForPrompt(sheets: RawSheet[]): string {
   const parts = sheets.map((sheet) => {
     const headerKeys = Object.keys(sheet.rows[0] ?? {});
-    const previewRows = sheet.rows.slice(0, 40);
+    const previewRows = sheet.rows.slice(0, 25);
     const headerLine = headerKeys.join(" | ");
     const dataLines = previewRows.map((row) =>
       headerKeys.map((k) => String(row[k] ?? "").trim()).join(" | ")
     );
-    return `### Hoja: ${sheet.name} (${sheet.rows.length} filas)\nColumnas: ${headerLine}\n${dataLines.join("\n")}`;
+    return `### ${sheet.name} (${sheet.rows.length} filas)\n${headerLine}\n${dataLines.join("\n")}`;
   });
   return parts.join("\n\n---\n\n");
 }
 
-export function clipForTokenBudget(text: string, maxChars = 14000): string {
+export function clipForTokenBudget(text: string, maxChars = 8000): string {
   if (text.length <= maxChars) return text;
   return text.slice(0, maxChars) + "\n\n[...contenido recortado por longitud...]";
 }
