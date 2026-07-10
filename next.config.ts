@@ -3,7 +3,12 @@ const nextConfig = {
   reactStrictMode: true,
   experimental: {
     serverActions: {
-      bodySizeLimit: "10mb",
+      bodySizeLimit: "20mb",
+    },
+  },
+  api: {
+    bodyParser: {
+      sizeLimit: "20mb",
     },
   },
 };

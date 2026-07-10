@@ -4,11 +4,21 @@ import { structureTripWithAI } from "@/lib/deepseek";
 import { createTrip } from "@/lib/db";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
+export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
-    const form = await request.formData();
+    let form: FormData;
+    try {
+      form = await request.formData();
+    } catch {
+      return NextResponse.json(
+        { error: "El archivo es demasiado grande o el formato es inválido. Máximo 15 MB." },
+        { status: 413 }
+      );
+    }
+
     const file = form.get("file");
 
     if (!(file instanceof File)) {
@@ -18,10 +28,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const maxSize = 10 * 1024 * 1024;
+    const maxSize = 15 * 1024 * 1024;
     if (file.size > maxSize) {
       return NextResponse.json(
-        { error: "El archivo supera el límite de 10 MB." },
+        { error: "El archivo supera el límite de 15 MB." },
         { status: 413 }
       );
     }

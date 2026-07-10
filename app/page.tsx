@@ -22,7 +22,16 @@ export default function HomePage() {
       const form = new FormData();
       form.append("file", file);
       const res = await fetch("/api/generate", { method: "POST", body: form });
-      const data = await res.json();
+
+      let data: { id?: string; error?: string };
+      try {
+        data = await res.json();
+      } catch {
+        const text = await res.text().catch(() => "");
+        throw new Error(
+          text || `El servidor respondió ${res.status}. Puede que el archivo sea demasiado grande.`
+        );
+      }
 
       if (!res.ok) {
         throw new Error(data?.error || `Error ${res.status}`);
