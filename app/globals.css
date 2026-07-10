@@ -1,0 +1,193 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg: #fbf8f3;
+    --bg-alt: #f5f1ea;
+    --fg: #1a1a1a;
+    --fg-muted: #6b6b6b;
+    --line: #e0d5bf;
+    --accent: #b5532f;
+  }
+
+  .dark {
+    --bg: #14140f;
+    --bg-alt: #1c1c16;
+    --fg: #f1ece1;
+    --fg-muted: #a8a294;
+    --line: #2e2e26;
+    --accent: #c9744e;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--fg);
+    font-feature-settings: "ss01", "ss02", "cv01", "cv02";
+    padding: env(safe-area-inset-top) env(safe-area-inset-right)
+      env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  ::selection {
+    background-color: var(--accent);
+    color: var(--bg);
+  }
+
+  /* Thin elegant scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--line);
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--fg-muted);
+  }
+}
+
+@layer components {
+  .container-editorial {
+    @apply mx-auto w-full max-w-6xl px-5 sm:px-6 md:px-12;
+    padding-left: max(1.25rem, env(safe-area-inset-left));
+    padding-right: max(1.25rem, env(safe-area-inset-right));
+  }
+
+  .display-xl {
+    @apply font-display text-5xl leading-[0.95] tracking-tightest sm:text-6xl md:text-7xl lg:text-[5.5rem];
+  }
+
+  .display-lg {
+    @apply font-display text-4xl leading-tight tracking-tightest sm:text-5xl md:text-6xl;
+  }
+
+  .display-md {
+    @apply font-display text-3xl leading-tight tracking-tightest sm:text-4xl;
+  }
+
+  .eyebrow {
+    @apply font-sans text-xs uppercase tracking-widest2 text-[var(--fg-muted)];
+  }
+
+  .section-number {
+    @apply font-mono text-xs text-[var(--accent)] tracking-widest2;
+  }
+
+  .rule {
+    @apply h-px w-full origin-left scale-x-100 bg-[var(--line)];
+  }
+
+  .card-editorial {
+    @apply border border-[var(--line)] bg-[var(--bg-alt)] transition-colors;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-[var(--fg)] px-7 py-3.5 font-sans text-sm font-medium text-[var(--bg)] transition-all hover:bg-[var(--accent)] hover:text-white active:scale-[0.98];
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-[var(--line)] px-6 py-3 font-sans text-sm font-medium text-[var(--fg)] transition-all hover:border-[var(--fg)] hover:bg-[var(--bg-alt)] active:scale-[0.98];
+  }
+}
+
+@layer utilities {
+  .shimmer-bg {
+    background: linear-gradient(
+      90deg,
+      var(--bg-alt) 0%,
+      var(--line) 50%,
+      var(--bg-alt) 100%
+    );
+    background-size: 200% 100%;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Leaflet overrides for editorial look */
+.leaflet-container {
+  background: var(--bg-alt) !important;
+  font-family: var(--font-geist-sans), system-ui, sans-serif !important;
+  isolation: isolate;
+}
+
+.leaflet-pane,
+.leaflet-control,
+.leaflet-top,
+.leaflet-bottom {
+  z-index: 1 !important;
+}
+
+.leaflet-control-zoom a {
+  background: var(--bg) !important;
+  color: var(--fg) !important;
+  border-color: var(--line) !important;
+}
+
+.leaflet-control-zoom a:hover {
+  background: var(--bg-alt) !important;
+}
+
+.leaflet-popup-content-wrapper {
+  background: var(--bg) !important;
+  color: var(--fg) !important;
+  border-radius: 4px !important;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12) !important;
+}
+
+.leaflet-popup-tip {
+  background: var(--bg) !important;
+}
+
+.leaflet-popup-content {
+  margin: 14px 18px !important;
+  font-family: var(--font-geist-sans), system-ui, sans-serif !important;
+}
+
+.trip-marker {
+  background: var(--accent);
+  border: 2px solid var(--bg);
+  border-radius: 999px;
+  width: 14px;
+  height: 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s ease;
+}
+
+.trip-marker:hover {
+  transform: scale(1.25);
+}
+
+.trip-marker-day {
+  background: var(--fg);
+}
+
+.trip-marker-reco {
+  background: var(--accent);
+}
+
+.trip-marker-osm {
+  background: var(--olive, #6b6b3a);
+  opacity: 0.85;
+}
