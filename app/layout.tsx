@@ -27,6 +27,11 @@ export const metadata: Metadata = {
   description:
     "Sube tu Excel de viaje y lo convierto en una página web editorial: itinerario, presupuesto, mapa, joyas ocultas y un chat con Juan, tu guía.",
   keywords: ["viajes", "excel", "itinerario", "mapa", "Amanda"],
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    shortcut: ["/icon.svg"],
+    apple: [{ url: "/icon.svg" }],
+  },
   openGraph: {
     title: "VaquitasLocas — tus viajes, en página",
     description:

@@ -11,12 +11,12 @@ export default function TripHero({ trip }: { trip: Trip }) {
         aria-hidden
         className="pointer-events-none absolute -right-32 -top-32 h-[420px] w-[420px] rounded-full bg-[var(--accent)] opacity-[0.06] blur-3xl"
       />
-      <div className="container-editorial pt-16 pb-12 md:pt-24 md:pb-16">
+      <div className="container-editorial pt-12 pb-10 md:pt-20 md:pb-14">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-          className="space-y-8"
+          className="space-y-6"
         >
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
             <span className="eyebrow">VaquitasLocas</span>
@@ -44,7 +44,7 @@ export default function TripHero({ trip }: { trip: Trip }) {
             </p>
           )}
 
-          <div className="flex flex-wrap items-center gap-3 pt-2">
+          <div className="flex flex-wrap items-center gap-3 pt-1">
             <span className="font-mono text-sm text-[var(--fg)]">
               {trip.destination}
             </span>
@@ -59,7 +59,7 @@ export default function TripHero({ trip }: { trip: Trip }) {
           </div>
 
           {trip.overview && (
-            <p className="max-w-2xl text-lg leading-relaxed text-[var(--fg)] text-balance pt-4">
+            <p className="max-w-2xl text-lg leading-relaxed text-[var(--fg)] text-balance pt-2">
               {trip.overview}
             </p>
           )}
@@ -71,9 +71,33 @@ export default function TripHero({ trip }: { trip: Trip }) {
                 <path d="M5 12h14M13 6l6 6-6 6" />
               </svg>
             </a>
-            <a href="#mapa" className="btn-ghost">Abrir el mapa</a>
-            <a href="#recomendaciones" className="btn-ghost">Joyas ocultas</a>
+            <a href="#mapa" className="btn-ghost">Mapa</a>
+            <a href="#recomendaciones" className="btn-ghost">Recomendaciones</a>
           </div>
+
+          {trip.itinerary.length > 0 && (
+            <motion.nav
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.4, duration: 0.6 }}
+              className="flex flex-wrap gap-2 pt-4"
+            >
+              {trip.itinerary.map((day) => (
+                <a
+                  key={day.dayNumber}
+                  href={`#dia-${day.dayNumber}`}
+                  className="group flex items-center gap-2 rounded-full border border-[var(--line)] px-3 py-1.5 text-xs transition-colors hover:border-[var(--accent)]"
+                >
+                  <span className="font-mono text-[var(--accent)]">
+                    {String(day.dayNumber).padStart(2, "0")}
+                  </span>
+                  <span className="text-[var(--fg-muted)] group-hover:text-[var(--fg)]">
+                    {day.title}
+                  </span>
+                </a>
+              ))}
+            </motion.nav>
+          )}
         </motion.div>
       </div>
     </header>

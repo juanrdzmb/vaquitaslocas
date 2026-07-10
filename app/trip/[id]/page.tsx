@@ -53,7 +53,7 @@ export default async function TripPage({ params }: Props) {
 
       <Hotels stays={trip.hotels} />
 
-      <Itinerary days={trip.itinerary} />
+      <Itinerary days={trip.itinerary} trip={trip} />
 
       <Budget items={trip.budget} />
 

@@ -70,8 +70,15 @@ export default function ChatPanel({ trip }: Props) {
       });
 
       if (!res.ok || !res.body) {
-        const errText = await res.text().catch(() => "");
-        throw new Error(errText || `Error ${res.status}`);
+        let errMsg = `Error ${res.status}`;
+        try {
+          const errData = await res.json();
+          errMsg = errData?.error || errMsg;
+        } catch {
+          const text = await res.text().catch(() => "");
+          if (text) errMsg = text;
+        }
+        throw new Error(errMsg);
       }
 
       const reader = res.body.getReader();
@@ -85,6 +92,16 @@ export default function ChatPanel({ trip }: Props) {
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantId ? { ...m, content: acc } : m
+          )
+        );
+      }
+
+      if (!acc.trim()) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId
+              ? { ...m, content: "Hmm, no me llegó nada. ¿Me repetís, Amanda?" }
+              : m
           )
         );
       }
@@ -165,17 +182,22 @@ export default function ChatPanel({ trip }: Props) {
             }}
           >
             <header className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
-              <div>
-                <p className="font-display text-lg leading-none tracking-tightest">
-                  Juan — el guía
-                </p>
-                <p className="mt-1 font-mono text-[10px] uppercase tracking-widest2 text-[var(--fg-muted)]">
-                  Sobre tu viaje
-                </p>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)] font-display text-lg text-white">
+                  J
+                </div>
+                <div>
+                  <p className="font-display text-lg leading-none tracking-tightest">
+                    Juan
+                  </p>
+                  <p className="mt-1 font-mono text-[10px] uppercase tracking-widest2 text-[var(--fg-muted)]">
+                    Tu guía · en línea
+                  </p>
+                </div>
               </div>
               <span className="relative flex h-2.5 w-2.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--accent)] opacity-40" />
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[var(--accent)]" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-500 opacity-60" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-500" />
               </span>
             </header>
 
@@ -185,10 +207,15 @@ export default function ChatPanel({ trip }: Props) {
             >
               {messages.length === 0 && (
                 <div className="space-y-4">
-                  <div className="rounded-2xl rounded-tl-sm bg-[var(--bg-alt)] px-4 py-3 text-sm">
-                    ¡A la orden, parce! Soy Juan, tu guía. Contame qué querés
-                    saber sobre <span className="font-medium">{trip.title}</span>:
-                    planes, transporte, dónde comer, librerías, lo que sea.
+                  <div className="flex gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] font-display text-sm text-white">
+                      J
+                    </div>
+                    <div className="rounded-2xl rounded-tl-sm bg-[var(--bg-alt)] px-4 py-3 text-sm leading-relaxed">
+                      ¡A la orden, Amanda! Soy Juan, tu guía. Contame qué
+                      querés saber sobre <span className="font-medium">{trip.title}</span>:
+                      planes, transporte, dónde comer, librerías, lo que sea.
+                    </div>
                   </div>
                   <div className="grid grid-cols-1 gap-2">
                     {SUGGESTIONS.map((s) => (
@@ -208,13 +235,18 @@ export default function ChatPanel({ trip }: Props) {
                 <div
                   key={m.id}
                   className={cn(
-                    "flex",
+                    "flex gap-2",
                     m.role === "user" ? "justify-end" : "justify-start"
                   )}
                 >
+                  {m.role === "assistant" && (
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] font-display text-sm text-white">
+                      J
+                    </div>
+                  )}
                   <div
                     className={cn(
-                      "max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed",
+                      "max-w-[80%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed",
                       m.role === "user"
                         ? "rounded-br-sm bg-[var(--fg)] text-[var(--bg)]"
                         : "rounded-tl-sm bg-[var(--bg-alt)] text-[var(--fg)]"
@@ -246,7 +278,7 @@ export default function ChatPanel({ trip }: Props) {
                 <input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Pregúntale a Juan…"
+                  placeholder="Escribile a Juan…"
                   disabled={streaming}
                   className="flex-1 rounded-full border border-[var(--line)] bg-[var(--bg)] px-4 py-2.5 text-sm outline-none focus:border-[var(--fg)]"
                 />
