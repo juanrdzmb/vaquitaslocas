@@ -10,6 +10,20 @@ type Props = {
   full?: boolean;
 };
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? "").replace(
+    /[&<>'"]/g,
+    (character) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "'": "&#39;",
+        '"': "&quot;",
+      })[character] ?? character
+  );
+}
+
 export default function PdfButton({ trip, day, full }: Props) {
   const [generating, setGenerating] = useState(false);
 
@@ -23,6 +37,12 @@ export default function PdfButton({ trip, day, full }: Props) {
       return;
     }
 
+    try {
+      printWindow.opener = null;
+    } catch {
+      // Some browsers expose opener as read-only.
+    }
+
     const days = day ? [day] : trip.itinerary;
     const title = day
       ? `Día ${day.dayNumber} — ${day.title}`
@@ -30,25 +50,35 @@ export default function PdfButton({ trip, day, full }: Props) {
 
     const html = buildPrintHtml(trip, days, title);
 
+    printWindow.document.open();
     printWindow.document.write(html);
     printWindow.document.close();
 
     setTimeout(() => {
-      printWindow.print();
-      setGenerating(false);
+      try {
+        printWindow.focus();
+        printWindow.print();
+      } finally {
+        setGenerating(false);
+      }
     }, 500);
   }
 
   return (
     <button
+      type="button"
       onClick={handlePrint}
       disabled={generating}
-      className="inline-flex items-center gap-1.5 rounded-full border border-[var(--line)] px-3 py-1.5 text-xs font-medium transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-40"
+      aria-busy={generating}
+      className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-[var(--line)] px-4 py-2 text-xs font-medium transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)] disabled:cursor-not-allowed disabled:opacity-40"
     >
       {generating ? (
-        <span className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--line)] border-t-[var(--accent)]" />
+        <span
+          aria-hidden="true"
+          className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--line)] border-t-[var(--accent)]"
+        />
       ) : (
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
         </svg>
       )}
@@ -62,6 +92,11 @@ function buildPrintHtml(
   days: ItineraryDay[],
   title: string
 ): string {
+  const safeDate = (value: string | null | undefined) =>
+    escapeHtml(formatDate(value));
+  const safeCurrency = (amount: number, currency: string) =>
+    escapeHtml(formatCurrency(amount, currency));
+
   const dayHtml = days
     .map((day) => {
       const stops = day.stops
@@ -75,15 +110,15 @@ function buildPrintHtml(
           });
           return `
           <div class="stop">
-            <div class="stop-time">${stop.time ?? ""}</div>
+            <div class="stop-time">${escapeHtml(stop.time)}</div>
             <div class="stop-content">
-              <h4>${stop.title}</h4>
-              ${stop.location ? `<p class="loc">${stop.location}</p>` : ""}
-              <p>${stop.description}</p>
+              <h4>${escapeHtml(stop.title)}</h4>
+              ${stop.location ? `<p class="loc">${escapeHtml(stop.location)}</p>` : ""}
+              <p>${escapeHtml(stop.description)}</p>
               <div class="meta">
-                ${stop.duration ? `<span>⏱ ${stop.duration}</span>` : ""}
-                ${stop.cost ? `<span>${stop.cost}</span>` : ""}
-                <a href="${mapsLink}" target="_blank">Ver en Google Maps</a>
+                ${stop.duration ? `<span>⏱ ${escapeHtml(stop.duration)}</span>` : ""}
+                ${stop.cost ? `<span>${escapeHtml(stop.cost)}</span>` : ""}
+                <a href="${escapeHtml(mapsLink)}" target="_blank" rel="noopener noreferrer">Ver en Google Maps</a>
               </div>
             </div>
           </div>`;
@@ -93,13 +128,13 @@ function buildPrintHtml(
       return `
         <div class="day">
           <div class="day-header">
-            <span class="day-num">${String(day.dayNumber).padStart(2, "0")}</span>
+            <span class="day-num">${escapeHtml(String(day.dayNumber).padStart(2, "0"))}</span>
             <div>
-              <h3>${day.title}</h3>
-              <p class="date">${formatDate(day.date)}</p>
+              <h3>${escapeHtml(day.title)}</h3>
+              <p class="date">${safeDate(day.date)}</p>
             </div>
           </div>
-          ${day.summary ? `<p class="summary">${day.summary}</p>` : ""}
+          ${day.summary ? `<p class="summary">${escapeHtml(day.summary)}</p>` : ""}
           ${stops}
         </div>`;
     })
@@ -110,14 +145,14 @@ function buildPrintHtml(
         .map(
           (h) => `
         <div class="hotel-card">
-          <h4>${h.name}</h4>
-          <p class="loc">${h.city}${h.address ? ` · ${h.address}` : ""}</p>
+          <h4>${escapeHtml(h.name)}</h4>
+          <p class="loc">${escapeHtml(h.city)}${h.address ? ` · ${escapeHtml(h.address)}` : ""}</p>
           <div class="hotel-meta">
-            <span><strong>Check in:</strong> ${formatDate(h.checkInDate)} ${h.checkInTime ?? ""}</span>
-            <span><strong>Check out:</strong> ${formatDate(h.checkOutDate)} ${h.checkOutTime ?? ""}</span>
-            ${h.totalPrice != null ? `<span><strong>Total:</strong> ${formatCurrency(h.totalPrice, h.currency)}</span>` : ""}
+            <span><strong>Check in:</strong> ${safeDate(h.checkInDate)} ${escapeHtml(h.checkInTime)}</span>
+            <span><strong>Check out:</strong> ${safeDate(h.checkOutDate)} ${escapeHtml(h.checkOutTime)}</span>
+            ${h.totalPrice != null ? `<span><strong>Total:</strong> ${safeCurrency(h.totalPrice, h.currency)}</span>` : ""}
           </div>
-          ${h.cancellationDeadline ? `<p class="cancel">Cancelación gratis hasta ${formatDate(h.cancellationDeadline)}</p>` : ""}
+          ${h.cancellationDeadline ? `<p class="cancel">Cancelación gratis hasta ${safeDate(h.cancellationDeadline)}</p>` : ""}
         </div>`
         )
         .join("")
@@ -129,10 +164,10 @@ function buildPrintHtml(
           (t) => `
         <div class="transport-row">
           <span class="t-type">${t.type === "flight" ? "✈" : t.type === "train" ? "🚆" : "→"}</span>
-          <span class="t-route"><strong>${t.departure}</strong> → <strong>${t.arrival}</strong></span>
-          <span class="t-date">${formatDate(t.date)}</span>
-          <span class="t-time">${t.departureTime ?? ""} - ${t.arrivalTime ?? ""}</span>
-          ${t.price != null ? `<span class="t-price">${formatCurrency(t.price, t.currency)}</span>` : ""}
+          <span class="t-route"><strong>${escapeHtml(t.departure)}</strong> → <strong>${escapeHtml(t.arrival)}</strong></span>
+          <span class="t-date">${safeDate(t.date)}</span>
+          <span class="t-time">${escapeHtml(t.departureTime)} - ${escapeHtml(t.arrivalTime)}</span>
+          ${t.price != null ? `<span class="t-price">${safeCurrency(t.price, t.currency)}</span>` : ""}
         </div>`
         )
         .join("")
@@ -142,7 +177,7 @@ function buildPrintHtml(
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>${title} — VaquitasLocas</title>
+<title>${escapeHtml(title)} — VaquitasLocas</title>
 <style>
   @page { margin: 2cm; }
   body {
@@ -186,9 +221,9 @@ function buildPrintHtml(
 </head>
 <body>
   <div class="header">
-    <h1>${trip.title}</h1>
-    <div class="sub">${trip.destination} · ${formatDate(trip.startDate)} — ${formatDate(trip.endDate)}</div>
-    ${trip.overview ? `<p style="color:#555; font-size:14px; margin-top:8px;">${trip.overview}</p>` : ""}
+    <h1>${escapeHtml(trip.title)}</h1>
+    <div class="sub">${escapeHtml(trip.destination)} · ${safeDate(trip.startDate)} — ${safeDate(trip.endDate)}</div>
+    ${trip.overview ? `<p style="color:#555; font-size:14px; margin-top:8px;">${escapeHtml(trip.overview)}</p>` : ""}
   </div>
 
   ${transportHtml ? `<h2>Vuelos y trenes</h2>${transportHtml}` : ""}

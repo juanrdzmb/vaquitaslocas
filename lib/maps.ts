@@ -18,13 +18,23 @@ export async function geocode(query: string): Promise<Coordinates | null> {
   url.searchParams.set("limit", "1");
   url.searchParams.set("addressdetails", "0");
 
-  const res = await fetch(url.toString(), {
-    headers: {
-      "User-Agent": "VaquitasLocas/1.0 (travel page generator)",
-      "Accept-Language": "es",
-    },
-    // next: { revalidate: 86400 },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
+  let res: Response;
+  try {
+    res = await fetch(url.toString(), {
+      headers: {
+        "User-Agent": "VaquitasLocas/2.0 (travel itinerary geocoding)",
+        "Accept-Language": "es,en",
+      },
+      next: { revalidate: 60 * 60 * 24 * 30 },
+      signal: controller.signal,
+    });
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!res.ok) return null;
   const data = (await res.json()) as NominatimResult[];

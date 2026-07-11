@@ -3,6 +3,20 @@ export type Coordinates = {
   lng: number;
 };
 
+export type TripVisualTheme = {
+  style:
+    | "metropolis"
+    | "coastal"
+    | "historic"
+    | "alpine"
+    | "tropical"
+    | "desert"
+    | "countryside";
+  mood: string;
+  motif: string;
+  emoji: string;
+};
+
 export type BudgetItem = {
   category: string;
   description: string;
@@ -11,6 +25,7 @@ export type BudgetItem = {
 };
 
 export type ItineraryStop = {
+  id?: string;
   time?: string;
   title: string;
   description: string;
@@ -61,6 +76,12 @@ export type TransportSegment = {
   currency: string;
   notes: string | null;
   coordinates: Coordinates | null;
+  provider?: string | null;
+  serviceNumber?: string | null;
+  terminal?: string | null;
+  platform?: string | null;
+  bookingUrl?: string | null;
+  checkInUrl?: string | null;
 };
 
 export type HotelStay = {
@@ -80,6 +101,10 @@ export type HotelStay = {
   cancellationDeadline: string | null;
   notes: string | null;
   coordinates: Coordinates | null;
+  phone?: string | null;
+  websiteUrl?: string | null;
+  bookingUrl?: string | null;
+  checkInUrl?: string | null;
 };
 
 export type Trip = {
@@ -100,12 +125,32 @@ export type Trip = {
   transport: TransportSegment[];
   hotels: HotelStay[];
   mapCenter: Coordinates | null;
+  visualTheme?: TripVisualTheme;
+  sourceFileName?: string;
+  sourceSheetCount?: number;
   createdAt: number;
 };
 
-export type RawSheet = {
+export type WorkbookCellInput = {
+  column: number;
+  value: string;
+  url?: string;
+};
+
+export type WorkbookRowInput = {
+  row: number;
+  cells: WorkbookCellInput[];
+};
+
+export type WorkbookSheetInput = {
   name: string;
-  rows: Record<string, unknown>[];
+  rows: WorkbookRowInput[];
+};
+
+export type ExtractedWorkbook = {
+  fileName: string;
+  fileSize: number;
+  sheets: WorkbookSheetInput[];
 };
 
 const RECO_TYPE_KEYWORDS: Array<[string, Recommendation["type"]]> = [

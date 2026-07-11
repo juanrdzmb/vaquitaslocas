@@ -7,7 +7,10 @@ export function cn(...inputs: ClassValue[]) {
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return "Sin fecha";
   try {
-    const d = new Date(iso);
+    const localDate = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+    const d = localDate
+      ? new Date(Number(localDate[1]), Number(localDate[2]) - 1, Number(localDate[3]))
+      : new Date(iso);
     if (isNaN(d.getTime())) return iso;
     return d.toLocaleDateString("es-ES", {
       day: "numeric",
@@ -45,12 +48,33 @@ export function googleMapsUrl(opts: {
   lng?: number;
 }): string {
   const { query, lat, lng } = opts;
-  if (typeof lat === "number" && typeof lng === "number") {
-    const q = query ? `/${encodeURIComponent(query)}` : "";
-    return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}${q}`;
-  }
   if (query) {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
   }
+  if (typeof lat === "number" && typeof lng === "number") {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lng}`)}`;
+  }
   return "https://www.google.com/maps";
+}
+
+export function googleDirectionsUrl(opts: {
+  destination: string;
+  lat?: number;
+  lng?: number;
+  travelMode?: "walking" | "driving" | "bicycling" | "transit";
+}): string {
+  const destination = opts.destination.trim() ||
+    (typeof opts.lat === "number" && typeof opts.lng === "number"
+      ? `${opts.lat},${opts.lng}`
+      : "");
+  const params = new URLSearchParams({
+    api: "1",
+    destination,
+    travelmode: opts.travelMode ?? "walking",
+  });
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
+export function webSearchUrl(query: string): string {
+  return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
 }

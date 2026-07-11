@@ -24,6 +24,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "VaquitasLocas — tus viajes, en página",
+  applicationName: "VaquitasLocas",
+  manifest: "/manifest.webmanifest",
   description:
     "Sube tu Excel de viaje y lo convierto en una página web editorial: itinerario, presupuesto, mapa, joyas ocultas y un chat con Juan, tu guía.",
   keywords: ["viajes", "excel", "itinerario", "mapa", "Amanda"],
@@ -37,6 +39,14 @@ export const metadata: Metadata = {
     description:
       "Sube tu Excel de viaje y lo convierto en una página web editorial.",
     type: "website",
+  },
+  appleWebApp: {
+    capable: true,
+    title: "VaquitasLocas",
+    statusBarStyle: "black-translucent",
+  },
+  formatDetection: {
+    telephone: false,
   },
 };
 

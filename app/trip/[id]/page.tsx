@@ -2,6 +2,9 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getTrip } from "@/lib/db";
 import TripHero from "@/components/TripHero";
+import DestinationTheme from "@/components/DestinationTheme";
+import TripAppShell from "@/components/TripAppShell";
+import TripNowCard from "@/components/TripNowCard";
 import Itinerary from "@/components/Itinerary";
 import FlightsTrains from "@/components/FlightsTrains";
 import Hotels from "@/components/Hotels";
@@ -9,13 +12,20 @@ import Budget from "@/components/Budget";
 import MapSection from "@/components/MapSection";
 import Recommendations from "@/components/Recommendations";
 import ChatPanel from "@/components/ChatPanel";
-import ShareButton from "@/components/ShareButton";
-import ThemeToggle from "@/components/ThemeToggle";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ id: string }> };
+
+function hasMapPoints(trip: Awaited<ReturnType<typeof getTrip>>): boolean {
+  if (!trip) return false;
+  if (trip.mapCenter) return true;
+  if (trip.itinerary.some((day) => day.stops.some((stop) => stop.coordinates))) {
+    return true;
+  }
+  return trip.recommendations.some((recommendation) => recommendation.coordinates);
+}
 
 export async function generateMetadata({ params }: Props) {
   const { id } = await params;
@@ -24,6 +34,7 @@ export async function generateMetadata({ params }: Props) {
   return {
     title: `${trip.title} · VaquitasLocas`,
     description: trip.overview || trip.subtitle || `Viaje a ${trip.destination}`,
+    robots: { index: false, follow: false },
   };
 }
 
@@ -31,76 +42,69 @@ export default async function TripPage({ params }: Props) {
   const { id } = await params;
   const trip = await getTrip(id);
   if (!trip) notFound();
+  const hasMap = hasMapPoints(trip);
 
   return (
-    <main className="min-h-screen">
-      <div className="container-editorial sticky top-0 z-40 flex items-center justify-between border-b border-[var(--line)] bg-[var(--bg)]/85 py-4 backdrop-blur-md">
-        <Link href="/" className="flex items-center gap-2">
-          <span className="font-display text-xl tracking-tightest">
-            VaquitasLocas
-          </span>
-          <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
-        </Link>
-        <div className="flex items-center gap-3">
-          <ShareButton tripId={trip.id} />
-          <ThemeToggle />
+    <DestinationTheme trip={trip}>
+      <TripAppShell trip={trip}>
+        <TripHero trip={trip} />
+        <TripNowCard trip={trip} now={Date.now()} />
+
+        <div className="trip-content">
+          <FlightsTrains segments={trip.transport} />
+          <Hotels stays={trip.hotels} />
+          <Itinerary days={trip.itinerary} trip={trip} />
+          <Budget items={trip.budget} />
+
+          {hasMap && (
+            <MapSection
+              center={trip.mapCenter}
+              itinerary={trip.itinerary}
+              recommendations={trip.recommendations}
+              tripId={trip.id}
+            />
+          )}
+
+          <Recommendations recommendations={trip.recommendations} />
+
+          {trip.tips.length > 0 && (
+            <section className="container-editorial trip-tips py-16 md:py-24">
+              <div className="flex items-baseline justify-between gap-4 pb-6">
+                <h2 className="display-md tracking-tightest">Antes de salir</h2>
+                <span className="section-number">A mano</span>
+              </div>
+              <div className="rule mb-10" />
+              <ul className="trip-tips__grid">
+                {trip.tips.map((tip, index) => (
+                  <li key={`${tip}-${index}`}>
+                    <span aria-hidden="true">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <p>{tip}</p>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </div>
-      </div>
 
-      <TripHero trip={trip} />
-
-      <FlightsTrains segments={trip.transport} />
-
-      <Hotels stays={trip.hotels} />
-
-      <Itinerary days={trip.itinerary} trip={trip} />
-
-      <Budget items={trip.budget} />
-
-      <MapSection
-        center={trip.mapCenter}
-        itinerary={trip.itinerary}
-        recommendations={trip.recommendations}
-        tripId={trip.id}
-      />
-
-      <Recommendations recommendations={trip.recommendations} />
-
-      {/* Tips */}
-      {trip.tips.length > 0 && (
-        <section className="container-editorial py-16 md:py-24">
-          <div className="flex items-baseline justify-between gap-4 pb-6">
-            <h2 className="display-md tracking-tightest">Antes de salir</h2>
-            <span className="section-number">05</span>
+        <footer className="container-editorial trip-footer">
+          <div>
+            <span className="trip-footer__mark" aria-hidden="true">
+              VL
+            </span>
+            <p>
+              Hecho para Amanda, con café, mapas y una cantidad poco razonable de
+              cariño.
+            </p>
           </div>
-          <div className="rule mb-12" />
-          <ul className="grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--line)] md:grid-cols-2">
-            {trip.tips.map((tip, i) => (
-              <li
-                key={i}
-                className="flex gap-4 bg-[var(--bg)] p-7"
-              >
-                <span className="font-mono text-xs text-[var(--accent)]">
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <p className="text-base leading-relaxed text-balance">{tip}</p>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      <footer className="container-editorial py-12">
-        <div className="rule mb-6" />
-        <div className="flex flex-wrap items-center justify-between gap-4 text-xs text-[var(--fg-muted)]">
-          <Link href="/" className="font-mono hover:text-[var(--fg)]">
-            ← Crear otro viaje
+          <Link href="/">
+            Crear otro viaje <span aria-hidden="true">↗</span>
           </Link>
-          <span className="font-display italic">Hecho con café y corazón</span>
-        </div>
-      </footer>
+        </footer>
 
-      <ChatPanel trip={trip} />
-    </main>
+        <ChatPanel trip={trip} />
+      </TripAppShell>
+    </DestinationTheme>
   );
 }

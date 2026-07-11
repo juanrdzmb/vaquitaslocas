@@ -1,147 +1,171 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { formatDate, googleMapsUrl } from "@/lib/utils";
+import { useEffect, useMemo, useState } from "react";
+import { formatDate, googleDirectionsUrl } from "@/lib/utils";
 import type { ItineraryDay, Trip } from "@/lib/schema";
 import PdfButton from "./PdfButton";
+import CalendarButton from "./CalendarButton";
 
-export default function Itinerary({
-  days,
-  trip,
-}: {
-  days: ItineraryDay[];
-  trip: Trip;
-}) {
-  if (!days.length) return null;
+function stopKey(day: ItineraryDay, index: number): string {
+  return day.stops[index]?.id || `day-${day.dayNumber}-stop-${index}`;
+}
+
+export default function Itinerary({ days, trip }: { days: ItineraryDay[]; trip: Trip }) {
+  const [activeDay, setActiveDay] = useState(days[0]?.dayNumber ?? 1);
+  const [completed, setCompleted] = useState<Set<string>>(new Set());
+  const storageKey = `vaquitas-progress:${trip.id}`;
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey) ?? "[]") as unknown;
+      if (Array.isArray(saved)) setCompleted(new Set(saved.filter((item): item is string => typeof item === "string")));
+    } catch {
+      // A corrupt local preference should never break the itinerary.
+    }
+  }, [storageKey]);
+
+  useEffect(() => {
+    const selectHashDay = () => {
+      const match = /^#dia-(\d+)$/.exec(window.location.hash);
+      if (match) setActiveDay(Number(match[1]));
+    };
+    selectHashDay();
+    window.addEventListener("hashchange", selectHashDay);
+    return () => window.removeEventListener("hashchange", selectHashDay);
+  }, []);
+
+  const active = days.find((day) => day.dayNumber === activeDay) ?? days[0];
+  const totalStops = useMemo(() => days.reduce((sum, day) => sum + day.stops.length, 0), [days]);
+  const completedCount = [...completed].filter((key) => days.some((day) => day.stops.some((_, index) => stopKey(day, index) === key))).length;
+
+  if (!days.length || !active) return null;
+
+  function toggle(key: string) {
+    setCompleted((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      localStorage.setItem(storageKey, JSON.stringify([...next]));
+      return next;
+    });
+  }
 
   return (
-    <section id="itinerario" className="container-editorial py-16 md:py-24">
-      <div className="flex flex-wrap items-baseline justify-between gap-4 pb-6">
-        <h2 className="display-md tracking-tightest">Itinerario día a día</h2>
-        <div className="flex items-center gap-3">
-          <PdfButton trip={trip} full />
-          <span className="section-number">{days.length} días</span>
+    <section id="itinerario" className="scroll-mt-24 py-14 md:py-20">
+      <div className="container-editorial">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="eyebrow mb-3">El plan, sin pelear con quince pestañas</p>
+            <h2 className="display-md">Día a día</h2>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <PdfButton trip={trip} full />
+            <span className="inline-flex min-h-11 items-center rounded-full border border-[var(--line)] px-4 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--fg-muted)]">
+              {completedCount}/{totalStops} hechos
+            </span>
+          </div>
         </div>
       </div>
-      <div className="rule mb-12" />
 
-      <div className="space-y-16">
-        {days.map((day, idx) => (
-          <motion.div
-            key={day.dayNumber}
-            id={`dia-${day.dayNumber}`}
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-80px" }}
-            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-            className="scroll-mt-20"
-          >
-            <div className="mb-6 flex items-baseline gap-4 border-b border-[var(--line)] pb-4">
-              <span className="font-display text-5xl leading-none tracking-tightest text-[var(--accent)]">
-                {String(day.dayNumber).padStart(2, "0")}
-              </span>
-              <div className="flex-1">
-                <h3 className="font-display text-2xl leading-tight tracking-tightest md:text-3xl">
-                  {day.title}
-                </h3>
-                <p className="mt-1 font-mono text-xs text-[var(--fg-muted)]">
-                  {formatDate(day.date)}
-                </p>
-              </div>
-              <PdfButton trip={trip} day={day} />
+      <div className="sticky top-[4.5rem] z-30 mt-8 border-y border-[var(--line)] bg-[var(--bg)]/90 py-3 backdrop-blur-xl">
+        <nav className="container-editorial flex gap-2 overflow-x-auto no-scrollbar" aria-label="Días del viaje">
+          {days.map((day) => {
+            const selected = day.dayNumber === active.dayNumber;
+            const dayDone = day.stops.length > 0 && day.stops.every((_, index) => completed.has(stopKey(day, index)));
+            return (
+              <button
+                key={day.dayNumber}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => {
+                  setActiveDay(day.dayNumber);
+                  history.replaceState(null, "", `#dia-${day.dayNumber}`);
+                }}
+                className={`flex min-h-12 shrink-0 items-center gap-3 rounded-full border px-4 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] ${selected ? "border-[var(--fg)] bg-[var(--fg)] text-[var(--bg)]" : "border-[var(--line)] bg-[var(--bg-alt)] hover:border-[var(--accent)]"}`}
+              >
+                <span className={`font-mono text-[10px] ${selected ? "text-[var(--bg)]" : "text-[var(--accent)]"}`}>{dayDone ? "✓" : String(day.dayNumber).padStart(2, "0")}</span>
+                <span className="max-w-36 truncate text-xs font-medium">{day.title}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+
+      <div className="container-editorial pt-10">
+        <motion.div
+          key={active.dayNumber}
+          id={`dia-${active.dayNumber}`}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="scroll-mt-40"
+        >
+          <div className="grid gap-6 border-b border-[var(--line)] pb-7 sm:grid-cols-[auto_1fr_auto] sm:items-end">
+            <span className="font-display text-6xl leading-none tracking-[-0.07em] text-[var(--accent)] sm:text-7xl">{String(active.dayNumber).padStart(2, "0")}</span>
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-[var(--fg-muted)]">{formatDate(active.date)}</p>
+              <h3 className="mt-2 font-display text-3xl leading-none tracking-tightest sm:text-5xl">{active.title}</h3>
             </div>
+            <PdfButton trip={trip} day={active} />
+          </div>
 
-            {day.summary && (
-              <p className="mb-8 max-w-2xl text-base leading-relaxed text-[var(--fg-muted)] text-balance">
-                {day.summary}
-              </p>
-            )}
+          {active.summary && <p className="my-7 max-w-3xl text-base leading-relaxed text-[var(--fg-muted)] sm:text-lg">{active.summary}</p>}
 
-            <ol className="relative space-y-1">
-              {day.stops.map((stop, i) => {
-                const mapsUrl = googleMapsUrl({
-                  query: stop.location
-                    ? `${stop.title}, ${stop.location}`
-                    : stop.title,
-                  lat: stop.coordinates?.lat,
-                  lng: stop.coordinates?.lng,
-                });
+          <ol className="grid gap-3">
+            {active.stops.map((stop, index) => {
+              const key = stopKey(active, index);
+              const done = completed.has(key);
+              const destination = stop.location ? `${stop.title}, ${stop.location}` : stop.title;
+              const directions = googleDirectionsUrl({ destination, lat: stop.coordinates?.lat, lng: stop.coordinates?.lng, travelMode: "walking" });
+              return (
+                <motion.li
+                  key={key}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.35, delay: Math.min(index * 0.035, 0.18) }}
+                  className={`group rounded-[1.5rem] border p-4 transition sm:p-5 ${done ? "border-emerald-500/30 bg-emerald-500/[0.04]" : "border-[var(--line)] bg-[var(--bg)] hover:border-[var(--accent)]"}`}
+                >
+                  <div className="grid gap-4 sm:grid-cols-[auto_1fr]">
+                    <button
+                      type="button"
+                      onClick={() => toggle(key)}
+                      aria-pressed={done}
+                      aria-label={`${done ? "Marcar como pendiente" : "Marcar como hecho"}: ${stop.title}`}
+                      className={`flex h-11 w-11 items-center justify-center rounded-2xl border text-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] ${done ? "border-emerald-500 bg-emerald-500 text-white" : "border-[var(--line)] text-[var(--fg-muted)] group-hover:border-[var(--accent)]"}`}
+                    >
+                      {done ? "✓" : String(index + 1).padStart(2, "0")}
+                    </button>
 
-                return (
-                  <motion.li
-                    key={i}
-                    initial={{ opacity: 0, x: -12 }}
-                    whileInView={{ opacity: 1, x: 0 }}
-                    viewport={{ once: true, margin: "-40px" }}
-                    transition={{ duration: 0.4, delay: i * 0.04 }}
-                    className="group grid grid-cols-[auto_1fr] gap-4 border-l-2 border-[var(--line)] py-5 pl-5 transition-colors hover:border-[var(--accent)] md:grid-cols-[auto_1fr_auto] md:gap-6"
-                  >
-                    <div className="flex flex-col items-center">
-                      {stop.time ? (
-                        <span className="font-mono text-xs font-medium text-[var(--accent)]">
-                          {stop.time}
-                        </span>
-                      ) : (
-                        <span className="h-2 w-2 rounded-full border border-[var(--fg-muted)] group-hover:bg-[var(--accent)] group-hover:border-[var(--accent)]" />
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {stop.time && <span className="rounded-full bg-[var(--accent)] px-2.5 py-1 font-mono text-[10px] text-white">{stop.time}</span>}
+                            {stop.duration && <span className="text-xs text-[var(--fg-muted)]">{stop.duration}</span>}
+                            {stop.cost && <span className="text-xs text-[var(--fg-muted)]">{stop.cost}</span>}
+                          </div>
+                          <h4 className={`mt-3 font-display text-2xl leading-tight tracking-tightest ${done ? "line-through opacity-60" : ""}`}>{stop.title}</h4>
+                          {stop.location && <p className="mt-1 text-xs text-[var(--accent)]">{stop.location}</p>}
+                        </div>
+                      </div>
+
+                      {stop.description && <p className="mt-3 max-w-3xl text-sm leading-relaxed text-[var(--fg-muted)] sm:text-base">{stop.description}</p>}
+                      {stop.tags && stop.tags.length > 0 && (
+                        <div className="mt-4 flex flex-wrap gap-2">{stop.tags.map((tag) => <span key={tag} className="rounded-full bg-[var(--bg-alt)] px-3 py-1 text-[11px] text-[var(--fg-muted)]">{tag}</span>)}</div>
                       )}
-                    </div>
 
-                    <div className="space-y-1.5">
-                      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                        <h4 className="font-display text-lg tracking-tightest md:text-xl">
-                          {stop.title}
-                        </h4>
-                        {stop.location && (
-                          <span className="text-xs text-[var(--fg-muted)]">
-                            {stop.location}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm leading-relaxed text-[var(--fg-muted)]">
-                        {stop.description}
-                      </p>
-                      <div className="flex flex-wrap items-center gap-2 pt-1">
-                        {stop.duration && (
-                          <span className="font-mono text-xs text-[var(--fg-muted)]">
-                            {stop.duration}
-                          </span>
-                        )}
-                        {stop.cost && (
-                          <span className="font-mono text-xs text-[var(--fg-muted)]">
-                            {stop.cost}
-                          </span>
-                        )}
-                        {stop.tags?.map((t) => (
-                          <span
-                            key={t}
-                            className="rounded-full bg-[var(--bg-alt)] px-2.5 py-0.5 text-xs text-[var(--fg-muted)]"
-                          >
-                            {t}
-                          </span>
-                        ))}
+                      <div className="mt-5 flex flex-wrap gap-2">
+                        <a href={directions} target="_blank" rel="noopener noreferrer" className="btn-primary min-h-11 px-4 py-2.5 text-xs">Ir con Maps ↗</a>
+                        <CalendarButton event={{ title: stop.title, date: active.date, startTime: stop.time, location: stop.location, description: stop.description }} label="Añadir" />
                       </div>
                     </div>
-
-                    <div className="col-span-2 flex items-end justify-end md:col-span-1">
-                      <a
-                        href={mapsUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-full border border-[var(--line)] px-3 py-1.5 text-xs font-medium transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                      >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                          <circle cx="12" cy="10" r="3" />
-                        </svg>
-                        Maps
-                      </a>
-                    </div>
-                  </motion.li>
-                );
-              })}
-            </ol>
-          </motion.div>
-        ))}
+                  </div>
+                </motion.li>
+              );
+            })}
+          </ol>
+        </motion.div>
       </div>
     </section>
   );

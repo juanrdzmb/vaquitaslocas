@@ -1,141 +1,217 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import UploadDropzone from "@/components/UploadDropzone";
 import GeneratingState from "@/components/GeneratingState";
 import ThemeToggle from "@/components/ThemeToggle";
+import { extractWorkbookInBrowser } from "@/lib/excel-client";
+
+type Status = "idle" | "reading" | "generating" | "error";
 
 export default function HomePage() {
   const router = useRouter();
-  const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
+  const controllerRef = useRef<AbortController | null>(null);
+  const [status, setStatus] = useState<Status>("idle");
   const [fileName, setFileName] = useState("");
+  const [lastFile, setLastFile] = useState<File | null>(null);
+  const [label, setLabel] = useState("");
+  const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
+  function showError(message: string) {
+    setStatus("error");
+    setError(message);
+  }
+
+  function cancel() {
+    controllerRef.current?.abort();
+    controllerRef.current = null;
+    setStatus("idle");
+    setError(null);
+    setProgress(0);
+  }
+
   async function handleFile(file: File) {
-    setStatus("loading");
+    controllerRef.current?.abort();
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    setLastFile(file);
     setFileName(file.name);
     setError(null);
+    setProgress(0.04);
+    setStatus("reading");
 
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
-      const form = new FormData();
-      form.append("file", file);
-      const res = await fetch("/api/generate", { method: "POST", body: form });
+      const workbook = await extractWorkbookInBrowser(
+        file,
+        ({ progress: nextProgress, label: nextLabel }) => {
+          setProgress(nextProgress);
+          setLabel(nextLabel);
+        },
+        controller.signal
+      );
 
-      let data: { id?: string; error?: string };
+      setStatus("generating");
+      setProgress(0.88);
+      setLabel(
+        `${workbook.sheets.length} hojas listas. Afinando rutas, comidas vegetarianas, libros y planes…`
+      );
+      timeout = setTimeout(() => controller.abort(), 180_000);
+
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workbook }),
+        signal: controller.signal,
+      });
+
+      const raw = await response.text();
+      let data: { id?: string; error?: string } = {};
       try {
-        data = await res.json();
+        data = raw ? (JSON.parse(raw) as typeof data) : {};
       } catch {
-        const text = await res.text().catch(() => "");
+        // Platform errors (including a proxy 413) may arrive as HTML/plain text.
+      }
+
+      if (!response.ok) {
         throw new Error(
-          text || `El servidor respondió ${res.status}. Puede que el archivo sea demasiado grande.`
+          data.error ||
+            (response.status === 413
+              ? "La guía compacta todavía es demasiado grande. Prueba dividiendo las hojas más extensas."
+              : `El servidor respondió ${response.status}. Inténtalo otra vez.`)
         );
       }
+      if (!data.id) throw new Error("La guía se creó, pero no recibí su enlace.");
 
-      if (!res.ok) {
-        throw new Error(data?.error || `Error ${res.status}`);
-      }
-      if (!data.id) throw new Error("La respuesta no incluye un id de viaje.");
-
+      setProgress(0.98);
+      setLabel("Lista. Abriendo el viaje…");
       router.push(`/trip/${data.id}`);
-    } catch (e) {
-      setStatus("error");
-      setError(e instanceof Error ? e.message : "Error desconocido");
+    } catch (reason) {
+      if (reason instanceof Error && reason.name === "AbortError") {
+        if (controllerRef.current === controller) {
+          showError("La importación se canceló o tardó demasiado. Puedes reintentarlo sin cambiar el Excel.");
+        }
+        return;
+      }
+      showError(reason instanceof Error ? reason.message : "No pude procesar el archivo.");
+    } finally {
+      if (timeout) clearTimeout(timeout);
+      if (controllerRef.current === controller) controllerRef.current = null;
     }
   }
 
+  const busy = status === "reading" || status === "generating";
+
   return (
-    <main className="min-h-screen">
-      {/* Top bar */}
-      <div className="container-editorial flex items-center justify-between py-6">
-        <Link href="/" className="flex items-center gap-2">
-          <span className="font-display text-xl tracking-tightest">
-            VaquitasLocas
-          </span>
-          <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
-        </Link>
-        <div className="flex items-center gap-3">
-          <ThemeToggle />
-        </div>
+    <main className="min-h-[100svh]">
+      <div className="pointer-events-none fixed inset-0 -z-10 opacity-70" aria-hidden>
+        <div className="absolute left-[-12rem] top-[-10rem] h-[34rem] w-[34rem] rounded-full bg-[var(--accent)] opacity-[0.10] blur-[110px]" />
+        <div className="absolute bottom-[-15rem] right-[-8rem] h-[36rem] w-[36rem] rounded-full bg-amber-400 opacity-[0.08] blur-[120px]" />
       </div>
 
-      {/* Hero */}
-      <section className="container-editorial pt-12 pb-8 md:pt-20 md:pb-12">
-        <div className="grid grid-cols-1 gap-12 md:grid-cols-12 md:gap-8">
-          <div className="md:col-span-7">
-            <p className="eyebrow mb-6">Excel → página de viaje</p>
-            <h1 className="display-xl text-balance">
-              Tu viaje,
-              <br />
-              <em className="font-display italic text-[var(--accent)]">
-                contado
-              </em>{" "}
-              como merece.
+      <nav className="container-editorial flex min-h-20 items-center justify-between" aria-label="Principal">
+        <Link href="/" className="group flex min-h-11 items-center gap-3 rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--fg)] text-sm text-[var(--bg)] transition-transform group-hover:-rotate-6">V</span>
+          <span>
+            <span className="block font-display text-lg leading-none tracking-tightest">VaquitasLocas</span>
+            <span className="mt-1 block font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--fg-muted)]">Amanda travel studio</span>
+          </span>
+        </Link>
+        <ThemeToggle />
+      </nav>
+
+      <section className="container-editorial pb-10 pt-8 sm:pt-14 lg:pb-16 lg:pt-20">
+        <div className="grid items-end gap-12 lg:grid-cols-[1.2fr_0.8fr]">
+          <div>
+            <div className="mb-7 flex flex-wrap items-center gap-3">
+              <span className="rounded-full border border-[var(--line)] bg-[var(--bg-alt)] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--fg-muted)]">Excel → app de viaje</span>
+              <span className="inline-flex items-center gap-2 text-xs text-[var(--fg-muted)]">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                pensada para iPhone y para ir andando
+              </span>
+            </div>
+            <h1 className="max-w-4xl pr-2 font-display text-[clamp(2.85rem,12vw,7.8rem)] leading-[0.88] tracking-[-0.055em] [overflow-wrap:anywhere]">
+              Amanda, menos pestañas.
+              <em className="mt-2 block pr-3 text-right text-[var(--accent)]">Más viaje.</em>
             </h1>
-            <p className="mt-8 max-w-md text-lg leading-relaxed text-[var(--fg-muted)] text-balance">
-              Sube el Excel que ya llevas para tu próximo viaje. Lo leo, lo
-              ordeno, te busco joyas ocultas, librerías y restaurantes, y te
-              monto una página web elegante lista para compartir.
-            </p>
           </div>
 
-          <div className="md:col-span-5 md:pt-6">
-            <ol className="space-y-5 text-sm">
-              {[
-                ["01", "Subes tu Excel", "Itinerario, presupuesto, listas… todo mezclado vale."],
-                ["02", "Lo ordeno todo", "Interpreto, geolocalizo y te curioseo recomendaciones."],
-                ["03", "Tienes una página", "URL única con mapa, itinerario, presupuesto y Juan, tu guía."],
-              ].map(([num, title, desc]) => (
-                <li key={num} className="grid grid-cols-[auto_1fr] gap-4">
-                  <span className="section-number">{num}</span>
-                  <div>
-                    <p className="font-display text-lg leading-tight tracking-tightest">
-                      {title}
-                    </p>
-                    <p className="mt-1 text-[var(--fg-muted)]">{desc}</p>
-                  </div>
-                </li>
+          <div className="max-w-xl lg:pb-2">
+            <p className="pr-2 text-lg leading-relaxed text-[var(--fg-muted)] sm:text-xl">
+              Tú haces el Excel con todo el mimo del mundo. Yo lo convierto en una guía única: días, reservas, mapa, presupuesto y un Juan de bolsillo que intenta ser útil antes de ponerse coqueto.
+            </p>
+            <div className="mt-7 flex flex-wrap gap-2">
+              {["📚 siempre hay sitio para libros", "🥬 vegetariano de verdad", "🚶 rutas caminables", "🏋️ tiempo para entrenar"].map((item) => (
+                <span key={item} className="rounded-full border border-[var(--line)] px-3 py-2 text-xs text-[var(--fg-muted)]">{item}</span>
               ))}
-            </ol>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Upload */}
-      <section className="container-editorial py-8 md:py-12">
-        {status === "loading" ? (
-          <GeneratingState fileName={fileName} />
+      <section className="container-editorial py-8 sm:py-12" aria-labelledby="import-title">
+        <h2 id="import-title" className="sr-only">Importar un Excel de viaje</h2>
+        {busy ? (
+          <GeneratingState
+            fileName={fileName}
+            label={label}
+            progress={progress}
+            phase={status === "reading" ? "reading" : "generating"}
+            onCancel={cancel}
+          />
         ) : (
-          <div className="mx-auto max-w-2xl">
-            <UploadDropzone onFile={handleFile} />
-            {status === "error" && (
-              <div className="mt-4 rounded-xl border border-[var(--accent)] bg-[var(--bg-alt)] p-4">
-                <p className="font-mono text-xs uppercase tracking-widest2 text-[var(--accent)]">
-                  Algo salió mal
-                </p>
-                <p className="mt-1 text-sm">{error}</p>
-                <button
-                  onClick={() => setStatus("idle")}
-                  className="mt-3 text-sm underline"
-                >
-                  Intentar de nuevo
-                </button>
-              </div>
-            )}
-            <p className="mt-4 text-center text-xs text-[var(--fg-muted)]">
-              Tu archivo se procesa y no se guarda tal cual.
-            </p>
+          <div className="grid gap-5 lg:grid-cols-[1.35fr_0.65fr]">
+            <UploadDropzone onFile={handleFile} onError={showError} />
+
+            <aside className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1" aria-label="Qué crea la aplicación">
+              {[
+                ["01", "Te lo ordeno", "Todas las hojas, no solo las primeras veinticinco filas."],
+                ["02", "Te ahorro clics", "Maps, calendario, PDFs por día y acciones de cada reserva."],
+                ["03", "Te acompaño", "Modo móvil, recomendaciones a tu gusto y chat contextual."],
+              ].map(([number, title, description]) => (
+                <article key={number} className="rounded-[1.5rem] border border-[var(--line)] bg-[var(--bg-alt)] p-5 sm:p-6">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-[10px] tracking-[0.18em] text-[var(--accent)]">{number}</span>
+                    <span aria-hidden className="text-[var(--fg-muted)]">↗</span>
+                  </div>
+                  <h3 className="mt-7 font-display text-2xl tracking-tightest">{title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-[var(--fg-muted)]">{description}</p>
+                </article>
+              ))}
+            </aside>
           </div>
+        )}
+
+        {status === "error" && (
+          <div className="mt-5 flex flex-col gap-4 rounded-2xl border border-[var(--accent)] bg-[var(--bg-alt)] p-5 sm:flex-row sm:items-center sm:justify-between" role="alert">
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--accent)]">Esto no salió como quería</p>
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed">{error}</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {lastFile && (
+                <button onClick={() => handleFile(lastFile)} className="btn-primary min-h-11 px-5 py-2.5">Reintentar</button>
+              )}
+              <button onClick={() => { setStatus("idle"); setError(null); }} className="btn-ghost min-h-11 px-5 py-2.5">Elegir otro</button>
+            </div>
+          </div>
+        )}
+
+        {!busy && (
+          <p className="mt-5 text-center text-xs leading-relaxed text-[var(--fg-muted)]">
+            El Excel se abre en este dispositivo. Enviamos solo el texto útil de las celdas para organizar la guía; el archivo original y sus imágenes no se guardan.
+          </p>
         )}
       </section>
 
-      {/* Footer */}
-      <footer className="container-editorial py-12">
+      <footer className="container-editorial pb-10 pt-14">
         <div className="rule mb-6" />
         <div className="flex flex-wrap items-center justify-between gap-4 text-xs text-[var(--fg-muted)]">
-          <span className="font-mono">VaquitasLocas</span>
-          <span className="font-display italic">Hecho con café y corazón</span>
+          <span className="font-mono">VAQUITASLOCAS / 2026</span>
+          <span className="font-display italic">Hecho con café colombiano, cariño y cero ganas de pelear con Excel.</span>
         </div>
       </footer>
     </main>

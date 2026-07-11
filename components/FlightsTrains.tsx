@@ -2,139 +2,139 @@
 
 import { motion } from "framer-motion";
 import type { TransportSegment } from "@/lib/schema";
-import { formatDate, formatCurrency, googleMapsUrl } from "@/lib/utils";
+import { formatCurrency, formatDate, googleMapsUrl, webSearchUrl } from "@/lib/utils";
+import CalendarButton from "./CalendarButton";
 
-const TYPE_META: Record<
-  TransportSegment["type"],
-  { label: string; icon: string }
-> = {
+const TYPE_META: Record<TransportSegment["type"], { label: string; icon: string }> = {
   flight: { label: "Vuelo", icon: "✈" },
-  train: { label: "Tren", icon: "🚆" },
-  bus: { label: "Bus", icon: "🚌" },
-  other: { label: "Transporte", icon: "→" },
+  train: { label: "Tren", icon: "↗" },
+  bus: { label: "Bus", icon: "▰" },
+  other: { label: "Traslado", icon: "→" },
 };
 
-export default function FlightsTrains({
-  segments,
-}: {
-  segments: TransportSegment[];
-}) {
-  if (!segments.length) return null;
+function totalsByCurrency(segments: TransportSegment[]): Array<[string, number]> {
+  const totals = new Map<string, number>();
+  for (const segment of segments) {
+    if (segment.price == null) continue;
+    const currency = segment.currency || "EUR";
+    totals.set(currency, (totals.get(currency) ?? 0) + segment.price);
+  }
+  return [...totals.entries()];
+}
 
-  const total = segments.reduce((sum, s) => sum + (s.price ?? 0), 0);
-  const currency = segments[0]?.currency ?? "EUR";
+export default function FlightsTrains({ segments }: { segments: TransportSegment[] }) {
+  if (!segments.length) return null;
+  const totals = totalsByCurrency(segments);
 
   return (
-    <section className="container-editorial py-16 md:py-24">
-      <div className="flex items-baseline justify-between gap-4 pb-6">
-        <h2 className="display-md tracking-tightest">Vuelos y trenes</h2>
-        <span className="section-number">Transporte</span>
+    <section id="reservas" className="container-editorial scroll-mt-24 py-14 md:py-20">
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="eyebrow mb-3">Movimientos importantes</p>
+          <h2 className="display-md">Vuelos, trenes y esa fe ciega en los horarios</h2>
+        </div>
+        <span className="section-number">{segments.length} trayectos</span>
       </div>
-      <div className="rule mb-12" />
 
-      <div className="space-y-4">
-        {segments.map((seg, i) => {
-          const meta = TYPE_META[seg.type];
-          const mapsUrl = googleMapsUrl({
-            query: `${seg.departure} to ${seg.arrival}`,
-            lat: seg.coordinates?.lat,
-            lng: seg.coordinates?.lng,
+      <div className="grid gap-4">
+        {segments.map((segment, index) => {
+          const meta = TYPE_META[segment.type];
+          const checkInUrl =
+            segment.checkInUrl ||
+            (segment.type === "flight"
+              ? webSearchUrl(`${segment.provider || segment.route} check-in online oficial`)
+              : null);
+          const mapUrl = googleMapsUrl({
+            query: `${segment.departure} ${segment.type === "flight" ? "airport" : "station"}`,
+            lat: segment.coordinates?.lat,
+            lng: segment.coordinates?.lng,
           });
+
           return (
-            <motion.div
-              key={seg.id}
-              initial={{ opacity: 0, y: 16 }}
+            <motion.article
+              key={segment.id}
+              initial={{ opacity: 0, y: 14 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-60px" }}
-              transition={{ duration: 0.5, delay: i * 0.05 }}
-              className="group grid grid-cols-1 gap-4 rounded-2xl border border-[var(--line)] bg-[var(--bg)] p-5 transition-colors hover:bg-[var(--bg-alt)] sm:grid-cols-[auto_1fr_auto] sm:items-center"
+              viewport={{ once: true, margin: "-40px" }}
+              transition={{ duration: 0.45, delay: Math.min(index * 0.04, 0.16) }}
+              className="overflow-hidden rounded-[1.5rem] border border-[var(--line)] bg-[var(--bg)]"
             >
-              <div className="flex items-center gap-4">
-                <span className="flex h-12 w-12 items-center justify-center rounded-full border border-[var(--line)] text-xl">
-                  {meta.icon}
-                </span>
-                <div>
-                  <span className="section-number">{meta.label}</span>
-                  {seg.date && (
-                    <p className="font-mono text-xs text-[var(--fg-muted)]">
-                      {formatDate(seg.date)}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 sm:gap-6">
-                <div className="text-center">
-                  <p className="font-display text-lg leading-none tracking-tightest">
-                    {seg.departure}
-                  </p>
-                  {seg.departureTime && (
-                    <p className="mt-1 font-mono text-xs text-[var(--fg-muted)]">
-                      {seg.departureTime}
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex flex-1 flex-col items-center">
-                  <span className="font-mono text-xs text-[var(--accent)]">
-                    {seg.duration ?? ""}
-                  </span>
-                  <div className="my-1 h-px w-full bg-[var(--line)]">
-                    <span className="block h-full w-full origin-left animate-draw-line bg-[var(--accent)]" />
+              <div className="grid gap-5 p-5 sm:p-6 lg:grid-cols-[0.55fr_1.35fr_0.7fr] lg:items-center">
+                <div className="flex items-center gap-4">
+                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--fg)] text-lg text-[var(--bg)]" aria-hidden>{meta.icon}</span>
+                  <div>
+                    <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--accent)]">{meta.label}</p>
+                    <p className="mt-1 text-sm text-[var(--fg-muted)]">{segment.date ? formatDate(segment.date) : "Fecha por confirmar"}</p>
+                    {(segment.provider || segment.serviceNumber) && (
+                      <p className="mt-1 text-xs text-[var(--fg-muted)]">{[segment.provider, segment.serviceNumber].filter(Boolean).join(" · ")}</p>
+                    )}
                   </div>
-                  <span className="font-mono text-[10px] uppercase tracking-widest2 text-[var(--fg-muted)]">
-                    {meta.label.toLowerCase()}
-                  </span>
                 </div>
 
-                <div className="text-center">
-                  <p className="font-display text-lg leading-none tracking-tightest">
-                    {seg.arrival}
-                  </p>
-                  {seg.arrivalTime && (
-                    <p className="mt-1 font-mono text-xs text-[var(--fg-muted)]">
-                      {seg.arrivalTime}
+                <div>
+                  <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+                    <div>
+                      <p className="font-display text-xl leading-tight sm:text-2xl">{segment.departure}</p>
+                      <p className="mt-1 font-mono text-xs text-[var(--fg-muted)]">{segment.departureTime || "—"}</p>
+                    </div>
+                    <div className="min-w-16 text-center">
+                      <p className="font-mono text-[10px] text-[var(--accent)]">{segment.duration || ""}</p>
+                      <div className="my-2 flex items-center" aria-hidden><span className="h-px flex-1 bg-[var(--line)]" /><span className="mx-1 text-[var(--accent)]">→</span><span className="h-px flex-1 bg-[var(--line)]" /></div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-display text-xl leading-tight sm:text-2xl">{segment.arrival}</p>
+                      <p className="mt-1 font-mono text-xs text-[var(--fg-muted)]">{segment.arrivalTime || "—"}</p>
+                    </div>
+                  </div>
+                  {(segment.terminal || segment.platform) && (
+                    <p className="mt-4 text-xs text-[var(--fg-muted)]">
+                      {[segment.terminal && `Terminal ${segment.terminal}`, segment.platform && `Andén ${segment.platform}`].filter(Boolean).join(" · ")}
                     </p>
                   )}
                 </div>
+
+                <div className="flex items-center justify-between gap-3 border-t border-[var(--line)] pt-4 lg:block lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0 lg:text-right">
+                  <div>
+                    <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--fg-muted)]">Importe</p>
+                    <p className="mt-1 font-display text-xl">{segment.price == null ? "—" : formatCurrency(segment.price, segment.currency)}</p>
+                  </div>
+                  <a href={mapUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-[var(--accent)] underline-offset-4 hover:underline">Ver salida ↗</a>
+                </div>
               </div>
 
-              <div className="flex items-center justify-between gap-3 sm:justify-end">
-                {seg.price != null && (
-                  <span className="font-mono text-sm">
-                    {formatCurrency(seg.price, seg.currency)}
-                  </span>
+              {segment.notes && <p className="border-t border-[var(--line)] bg-[var(--bg-alt)] px-5 py-3 text-xs leading-relaxed text-[var(--fg-muted)] sm:px-6">{segment.notes}</p>}
+
+              <div className="flex flex-wrap gap-2 border-t border-[var(--line)] px-5 py-4 sm:px-6">
+                {checkInUrl && (
+                  <a href={checkInUrl} target="_blank" rel="noopener noreferrer" className="btn-primary min-h-11 px-4 py-2.5 text-xs">
+                    {segment.checkInUrl ? "Abrir check-in" : "Buscar check-in oficial"} ↗
+                  </a>
                 )}
-                <a
-                  href={mapsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--line)] text-xs transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                  aria-label="Ver ruta en Google Maps"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                    <circle cx="12" cy="10" r="3" />
-                  </svg>
-                </a>
+                {segment.bookingUrl && (
+                  <a href={segment.bookingUrl} target="_blank" rel="noopener noreferrer" className="btn-ghost min-h-11 px-4 py-2.5 text-xs">Gestionar reserva ↗</a>
+                )}
+                <CalendarButton
+                  event={{
+                    title: `${meta.label}: ${segment.route}`,
+                    date: segment.date,
+                    startTime: segment.departureTime,
+                    endTime: segment.arrivalTime,
+                    location: segment.departure,
+                    description: segment.notes,
+                  }}
+                />
               </div>
-
-              {seg.notes && (
-                <p className="col-span-full text-xs italic text-[var(--fg-muted)]">
-                  {seg.notes}
-                </p>
-              )}
-            </motion.div>
+            </motion.article>
           );
         })}
       </div>
 
-      {total > 0 && (
-        <div className="mt-6 flex items-center justify-between border-t-2 border-[var(--fg)] pt-4">
-          <span className="font-display text-lg">Total transporte</span>
-          <span className="font-display text-2xl">
-            {formatCurrency(total, currency)}
-          </span>
+      {totals.length > 0 && (
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[var(--fg)] px-5 py-4 text-[var(--bg)]">
+          <span className="font-display text-lg">Total de transporte</span>
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            {totals.map(([currency, amount]) => <span key={currency} className="font-display text-xl">{formatCurrency(amount, currency)}</span>)}
+          </div>
         </div>
       )}
     </section>

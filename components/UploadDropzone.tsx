@@ -2,9 +2,12 @@
 
 import { useCallback, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+import { isSupportedWorkbook } from "@/lib/excel-client";
+import { WORKBOOK_LIMITS } from "@/lib/workbook";
 
 type Props = {
   onFile: (file: File) => void;
+  onError?: (message: string) => void;
   disabled?: boolean;
 };
 
@@ -17,102 +20,116 @@ const ACCEPTED = [
   "text/csv",
 ];
 
-export default function UploadDropzone({ onFile, disabled }: Props) {
+export default function UploadDropzone({ onFile, onError, disabled }: Props) {
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      setDragging(false);
-      if (disabled) return;
-      const file = e.dataTransfer.files?.[0];
-      if (file) onFile(file);
+  const choose = useCallback(
+    (file?: File) => {
+      if (!file || disabled) return;
+      if (!isSupportedWorkbook(file)) {
+        onError?.("Ese formato no me sirve todavía. Usa .xlsx, .xls o .csv.");
+        return;
+      }
+      if (file.size > WORKBOOK_LIMITS.maxSourceBytes) {
+        onError?.("El archivo supera 40 MB. Quita imágenes pesadas o divide el libro.");
+        return;
+      }
+      if (!file.size) {
+        onError?.("Ese archivo está vacío.");
+        return;
+      }
+      onFile(file);
     },
-    [onFile, disabled]
+    [disabled, onError, onFile]
+  );
+
+  const handleDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault();
+      setDragging(false);
+      choose(event.dataTransfer.files?.[0]);
+    },
+    [choose]
   );
 
   return (
     <div
-      onDragOver={(e) => {
-        e.preventDefault();
+      onDragOver={(event) => {
+        event.preventDefault();
         if (!disabled) setDragging(true);
       }}
-      onDragLeave={() => setDragging(false)}
+      onDragLeave={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false);
+      }}
       onDrop={handleDrop}
       onClick={() => !disabled && inputRef.current?.click()}
       role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if ((e.key === "Enter" || e.key === " ") && !disabled) {
-          e.preventDefault();
+      aria-disabled={disabled}
+      aria-describedby="upload-help"
+      tabIndex={disabled ? -1 : 0}
+      onKeyDown={(event) => {
+        if ((event.key === "Enter" || event.key === " ") && !disabled) {
+          event.preventDefault();
           inputRef.current?.click();
         }
       }}
       className={cn(
-        "group relative flex min-h-[280px] cursor-pointer flex-col items-center justify-center gap-6 rounded-2xl border border-dashed p-10 text-center transition-all",
+        "group relative isolate flex min-h-[330px] cursor-pointer flex-col justify-between overflow-hidden rounded-[2rem] border p-6 text-left transition duration-300 sm:p-8",
         dragging
-          ? "border-[var(--accent)] bg-[var(--bg-alt)] scale-[1.01]"
-          : "border-[var(--line)] bg-[var(--bg)] hover:border-[var(--fg-muted)]",
-        disabled && "cursor-not-allowed opacity-50"
+          ? "scale-[1.01] border-[var(--accent)] bg-[var(--bg-alt)] shadow-2xl"
+          : "border-[var(--line)] bg-[var(--bg)] shadow-[0_24px_80px_rgba(15,23,42,0.08)] hover:-translate-y-0.5 hover:border-[var(--accent)]",
+        disabled && "cursor-not-allowed opacity-55"
       )}
     >
       <input
         ref={inputRef}
         type="file"
         accept={ACCEPTED.join(",")}
-        className="hidden"
+        className="sr-only"
         disabled={disabled}
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) onFile(file);
-          e.target.value = "";
+        onChange={(event) => {
+          choose(event.target.files?.[0]);
+          event.target.value = "";
         }}
       />
 
       <div
-        className={cn(
-          "flex h-16 w-16 items-center justify-center rounded-full border border-[var(--line)] transition-all",
-          dragging ? "border-[var(--accent)] text-[var(--accent)]" : "text-[var(--fg-muted)]",
-          "group-hover:border-[var(--fg)] group-hover:text-[var(--fg)]"
-        )}
-      >
-        <svg
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M12 16V4M12 4l-5 5M12 4l5 5" />
-          <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
-        </svg>
+        aria-hidden
+        className="absolute -right-16 -top-20 -z-10 h-64 w-64 rounded-full bg-[var(--accent)] opacity-[0.10] blur-3xl transition-transform duration-500 group-hover:scale-125"
+      />
+
+      <div className="flex items-start justify-between gap-4">
+        <span className="inline-flex min-h-11 items-center rounded-full border border-[var(--line)] bg-[var(--bg-alt)] px-4 font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--fg-muted)]">
+          Importador inteligente
+        </span>
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--fg)] text-[var(--bg)] shadow-lg transition-transform group-hover:-translate-y-1" aria-hidden>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5" />
+            <path d="M4 15.5V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3.5" />
+          </svg>
+        </span>
       </div>
 
-      <div className="space-y-1.5">
-        <p className="font-display text-2xl tracking-tightest">
-          Arrastra tu Excel aquí
+      <div className="my-10 max-w-lg">
+        <p className="font-display text-3xl leading-[1.02] tracking-tightest sm:text-4xl">
+          Suelta aquí el Excel.
+          <span className="block italic text-[var(--accent)]">El caos me lo quedo yo.</span>
         </p>
-        <p className="text-sm text-[var(--fg-muted)]">
-          o haz clic para elegir un archivo · .xlsx, .xls, .csv
+        <p id="upload-help" className="mt-4 max-w-md text-sm leading-relaxed text-[var(--fg-muted)] sm:text-base">
+          También puedes tocar para elegirlo. Funciona con varias hojas y con archivos llenos de imágenes: solo viajan las celdas útiles.
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-[var(--fg-muted)]">
-        <span className="rounded-full border border-[var(--line)] px-3 py-1">
-          Itinerario
-        </span>
-        <span className="rounded-full border border-[var(--line)] px-3 py-1">
-          Presupuesto
-        </span>
-        <span className="rounded-full border border-[var(--line)] px-3 py-1">
-          Lugares
-        </span>
-        <span className="rounded-full border border-[var(--line)] px-3 py-1">
-          Varias hojas
+      <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--fg-muted)]">
+        {["XLSX", "XLS", "CSV", "hasta 40 MB"].map((label) => (
+          <span key={label} className="rounded-full border border-[var(--line)] bg-[var(--bg-alt)] px-3 py-1.5">
+            {label}
+          </span>
+        ))}
+        <span className="ml-auto hidden items-center gap-2 text-[11px] sm:flex">
+          <span className="h-2 w-2 rounded-full bg-emerald-500" />
+          El archivo original no se guarda
         </span>
       </div>
     </div>

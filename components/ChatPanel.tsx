@@ -1,121 +1,159 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { ChatMessage, Trip } from "@/lib/schema";
 import { cn } from "@/lib/utils";
 
-type Props = { trip: Trip };
-
 const SUGGESTIONS = [
-  "Juance, ¿qué hago si me pierde la lluvia un día?",
-  "Reorganiza el día 3 pa' ir más despacio",
-  "¿Dónde hay librerías bacanas por el centro?",
-  "Parce, ¿cómo nos movemos en transporte público?",
+  "¿Qué harías hoy si llueve?",
+  "Dime dónde comer vegetariano sin caer en la ensalada triste",
+  "¿Qué librería me queda mejor en la ruta?",
+  "Reordéname un día para caminar menos",
 ];
 
-export default function ChatPanel({ trip }: Props) {
+function messageId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+export default function ChatPanel({ trip }: { trip: Trip }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hydrated, setHydrated] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const storageKey = `vaquitas-chat:${trip.id}`;
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey) ?? "[]") as unknown;
+      if (Array.isArray(saved)) {
+        setMessages(
+          saved
+            .filter(
+              (item): item is ChatMessage =>
+                Boolean(item) &&
+                typeof item === "object" &&
+                "role" in item &&
+                ((item as ChatMessage).role === "user" || (item as ChatMessage).role === "assistant") &&
+                typeof (item as ChatMessage).content === "string"
+            )
+            .slice(-30)
+        );
+      }
+    } catch {
+      // Ignore corrupt local chat history.
     }
+    setHydrated(true);
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    localStorage.setItem(storageKey, JSON.stringify(messages.filter((message) => message.content).slice(-30)));
+  }, [hydrated, messages, storageKey]);
+
+  useEffect(() => {
+    const openChat = () => setOpen(true);
+    window.addEventListener("open-juan-chat", openChat);
+    return () => window.removeEventListener("open-juan-chat", openChat);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const trigger = triggerRef.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusTimer = setTimeout(() => inputRef.current?.focus(), 80);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+      if (event.key !== "Tab" || !dialogRef.current) return;
+      const focusable = [...dialogRef.current.querySelectorAll<HTMLElement>("button:not([disabled]), a[href], textarea:not([disabled])")];
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      clearTimeout(focusTimer);
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+      trigger?.focus();
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, streaming]);
 
-  async function send(text: string) {
-    const trimmed = text.trim();
+  async function send(value: string) {
+    const trimmed = value.trim();
     if (!trimmed || streaming) return;
     setError(null);
-
-    const userMsg: ChatMessage = {
-      id: `u-${Date.now()}`,
-      role: "user",
-      content: trimmed,
-      createdAt: Date.now(),
-    };
-    const history = messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
-    setMessages((m) => [...m, userMsg]);
+    const history = messages
+      .filter((message) => message.content)
+      .slice(-12)
+      .map(({ role, content }) => ({ role, content }));
+    const userMessage: ChatMessage = { id: messageId("u"), role: "user", content: trimmed, createdAt: Date.now() };
+    const assistantId = messageId("j");
+    setMessages((current) => [
+      ...current,
+      userMessage,
+      { id: assistantId, role: "assistant", content: "", createdAt: Date.now() },
+    ]);
     setInput("");
     setStreaming(true);
 
-    const assistantId = `a-${Date.now()}`;
-    setMessages((m) => [
-      ...m,
-      {
-        id: assistantId,
-        role: "assistant",
-        content: "",
-        createdAt: Date.now(),
-      },
-    ]);
-
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
-      const res = await fetch("/api/chat", {
+      const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tripId: trip.id,
-          history,
-          message: trimmed,
-        }),
+        body: JSON.stringify({ tripId: trip.id, history, message: trimmed }),
+        signal: controller.signal,
       });
-
-      if (!res.ok || !res.body) {
-        let errMsg = `Error ${res.status}`;
-        try {
-          const errData = await res.json();
-          errMsg = errData?.error || errMsg;
-        } catch {
-          const text = await res.text().catch(() => "");
-          if (text) errMsg = text;
-        }
-        throw new Error(errMsg);
+      if (!response.ok || !response.body) {
+        const detail = await response.text().catch(() => "");
+        throw new Error(detail || `El chat respondió ${response.status}.`);
       }
 
-      const reader = res.body.getReader();
+      const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let acc = "";
-
+      let answer = "";
       while (true) {
-        const { done, value } = await reader.read();
+        const { done, value: chunk } = await reader.read();
         if (done) break;
-        acc += decoder.decode(value, { stream: true });
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId ? { ...m, content: acc } : m
-          )
-        );
+        answer += decoder.decode(chunk, { stream: true });
+        setMessages((current) => current.map((message) => (message.id === assistantId ? { ...message, content: answer } : message)));
       }
-
-      if (!acc.trim()) {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId
-              ? { ...m, content: "Hmm, no me llegó nada. ¿Me repetís, Amanda?" }
-              : m
-          )
-        );
+      if (!answer.trim()) {
+        setMessages((current) => current.map((message) => (message.id === assistantId ? { ...message, content: "Me quedé mirando el mapa como colombiano buscando una dirección sin nomenclatura. Repíteme eso 😅" } : message)));
       }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Error de conexión";
-      setError(msg);
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === assistantId
-            ? { ...m, content: `⚠️ ${msg}` }
-            : m
-        )
-      );
+    } catch (reason) {
+      if (reason instanceof Error && reason.name === "AbortError") {
+        setMessages((current) => current.map((message) => (message.id === assistantId && !message.content ? { ...message, content: "Me frenaste a tiempo. Iba por el tercer párrafo, qué peligro." } : message)));
+      } else {
+        const message = reason instanceof Error ? reason.message : "No pude conectar con Juan de bolsillo.";
+        setError(message);
+        setMessages((current) => current.map((item) => (item.id === assistantId ? { ...item, content: `⚠️ ${message}` } : item)));
+      }
     } finally {
+      if (abortRef.current === controller) abortRef.current = null;
       setStreaming(false);
     }
   }
@@ -123,178 +161,127 @@ export default function ChatPanel({ trip }: Props) {
   return (
     <>
       <button
-        onClick={() => setOpen((o) => !o)}
-        aria-label="Hablar con Juan"
-        className="fixed bottom-6 right-6 z-[9999] flex h-14 w-14 items-center justify-center rounded-full bg-[var(--fg)] text-[var(--bg)] shadow-xl transition-all hover:scale-105 hover:bg-[var(--accent)]"
-        style={{
-          bottom: "calc(1.5rem + env(safe-area-inset-bottom))",
-          right: "calc(1.5rem + env(safe-area-inset-right))",
-        }}
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-label="Abrir Juan de bolsillo"
+        aria-expanded={open}
+        aria-controls="juan-chat-dialog"
+        className="fixed right-[max(0.75rem,env(safe-area-inset-right))] z-[9999] flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--fg)] text-[var(--bg)] shadow-2xl transition hover:-translate-y-1 hover:bg-[var(--accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] bottom-[calc(0.6rem+env(safe-area-inset-bottom))] sm:right-[max(1.5rem,env(safe-area-inset-right))] sm:bottom-[calc(1.5rem+env(safe-area-inset-bottom))]"
       >
-        <AnimatePresence mode="wait" initial={false}>
-          {open ? (
-            <motion.svg
-              key="close"
-              initial={{ rotate: -90, opacity: 0 }}
-              animate={{ rotate: 0, opacity: 1 }}
-              exit={{ rotate: 90, opacity: 0 }}
-              width="22"
-              height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M18 6L6 18M6 6l12 12" />
-            </motion.svg>
-          ) : (
-            <motion.svg
-              key="chat"
-              initial={{ rotate: 90, opacity: 0 }}
-              animate={{ rotate: 0, opacity: 1 }}
-              exit={{ rotate: -90, opacity: 0 }}
-              width="22"
-              height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </motion.svg>
-          )}
-        </AnimatePresence>
+        <span className="font-display text-xl" aria-hidden>{open ? "×" : "J"}</span>
       </button>
 
       <AnimatePresence>
         {open && (
-          <motion.div
-            initial={{ opacity: 0, y: 24, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 24, scale: 0.96 }}
-            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed z-[9998] flex flex-col overflow-hidden border border-[var(--line)] bg-[var(--bg)] shadow-2xl inset-2 sm:inset-auto sm:bottom-24 sm:right-4 sm:h-[min(70vh,560px)] sm:w-[min(94vw,400px)] sm:rounded-2xl rounded-2xl"
-            style={{
-              top: "max(0.5rem, env(safe-area-inset-top))",
-              bottom: "max(5rem, calc(5rem + env(safe-area-inset-bottom)))",
-              left: "max(0.5rem, env(safe-area-inset-left))",
-              right: "max(0.5rem, env(safe-area-inset-right))",
-            }}
-          >
-            <header className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)] font-display text-lg text-white">
-                  J
-                </div>
-                <div>
-                  <p className="font-display text-lg leading-none tracking-tightest">
-                    Juan
-                  </p>
-                  <p className="mt-1 font-mono text-[10px] uppercase tracking-widest2 text-[var(--fg-muted)]">
-                    Tu guía · en línea
-                  </p>
-                </div>
-              </div>
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-500 opacity-60" />
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-500" />
-              </span>
-            </header>
-
-            <div
-              ref={scrollRef}
-              className="flex-1 space-y-4 overflow-y-auto px-5 py-5 no-scrollbar"
+          <>
+            <motion.button
+              type="button"
+              aria-label="Cerrar chat"
+              onClick={() => setOpen(false)}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[10000] bg-black/35 backdrop-blur-[2px]"
+            />
+            <motion.div
+              ref={dialogRef}
+              id="juan-chat-dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="juan-chat-title"
+              initial={{ opacity: 0, y: 28, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 28, scale: 0.98 }}
+              transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+              className="fixed inset-x-2 z-[10001] flex overflow-hidden rounded-[1.75rem] border border-[var(--line)] bg-[var(--bg)] shadow-2xl top-[max(0.5rem,env(safe-area-inset-top))] bottom-[calc(0.5rem+env(safe-area-inset-bottom))] sm:inset-auto sm:bottom-[calc(1.5rem+env(safe-area-inset-bottom))] sm:right-[calc(1.5rem+env(safe-area-inset-right))] sm:h-[min(76dvh,650px)] sm:w-[min(430px,calc(100vw-3rem))] sm:flex-col"
             >
-              {messages.length === 0 && (
-                <div className="space-y-4">
-                  <div className="flex gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] font-display text-sm text-white">
-                      J
-                    </div>
-                    <div className="rounded-2xl rounded-tl-sm bg-[var(--bg-alt)] px-4 py-3 text-sm leading-relaxed">
-                      ¡A la orden, Amanda! Soy Juan, tu guía. Contame qué
-                      querés saber sobre <span className="font-medium">{trip.title}</span>:
-                      planes, transporte, dónde comer, librerías, lo que sea.
+              <div className="flex min-w-0 flex-1 flex-col">
+                <header className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3 sm:px-5">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--accent)] font-display text-xl text-white">J</span>
+                    <div className="min-w-0">
+                      <h2 id="juan-chat-title" className="truncate font-display text-xl leading-none tracking-tightest">Juan de bolsillo</h2>
+                      <p className="mt-1 truncate text-[10px] text-[var(--fg-muted)]">Copiloto digital · no Juan escribiendo en vivo</p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 gap-2">
-                    {SUGGESTIONS.map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => send(s)}
-                        className="rounded-xl border border-[var(--line)] px-3 py-2 text-left text-xs text-[var(--fg-muted)] transition-colors hover:border-[var(--fg)] hover:text-[var(--fg)]"
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+                  <button type="button" onClick={() => setOpen(false)} aria-label="Cerrar" className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--line)] text-xl transition hover:border-[var(--accent)]">×</button>
+                </header>
 
-              {messages.map((m) => (
-                <div
-                  key={m.id}
-                  className={cn(
-                    "flex gap-2",
-                    m.role === "user" ? "justify-end" : "justify-start"
-                  )}
-                >
-                  {m.role === "assistant" && (
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] font-display text-sm text-white">
-                      J
+                <div ref={scrollRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5" aria-live="polite">
+                  {messages.length === 0 && (
+                    <div className="space-y-5">
+                      <div className="flex gap-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)] font-display text-sm text-white">J</span>
+                        <div className="rounded-2xl rounded-tl-sm bg-[var(--bg-alt)] px-4 py-3 text-sm leading-relaxed">
+                          Amanda, ya me sé <strong>{trip.title}</strong>. Pregúntame por rutas, comida vegetariana, librerías, reservas o cómo salvar un día cuando el clima decida sabotear el romance.
+                        </div>
+                      </div>
+                      <div className="grid gap-2">
+                        {SUGGESTIONS.map((suggestion) => (
+                          <button key={suggestion} type="button" onClick={() => send(suggestion)} className="min-h-11 rounded-xl border border-[var(--line)] px-3 py-2 text-left text-xs leading-relaxed text-[var(--fg-muted)] transition hover:border-[var(--accent)] hover:text-[var(--fg)]">{suggestion}</button>
+                        ))}
+                      </div>
                     </div>
                   )}
-                  <div
-                    className={cn(
-                      "max-w-[80%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed",
-                      m.role === "user"
-                        ? "rounded-br-sm bg-[var(--fg)] text-[var(--bg)]"
-                        : "rounded-tl-sm bg-[var(--bg-alt)] text-[var(--fg)]"
-                    )}
-                  >
-                    {m.content || (
-                      <span className="inline-flex gap-1">
-                        <span className="h-2 w-2 animate-bounce rounded-full bg-[var(--fg-muted)] [animation-delay:-0.3s]" />
-                        <span className="h-2 w-2 animate-bounce rounded-full bg-[var(--fg-muted)] [animation-delay:-0.15s]" />
-                        <span className="h-2 w-2 animate-bounce rounded-full bg-[var(--fg-muted)]" />
-                      </span>
+
+                  {messages.map((message) => (
+                    <div key={message.id} className={cn("flex gap-2", message.role === "user" ? "justify-end" : "justify-start")}>
+                      {message.role === "assistant" && <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)] font-display text-sm text-white">J</span>}
+                      <div className={cn("max-w-[86%] rounded-2xl px-4 py-3 text-[15px] leading-relaxed", message.role === "user" ? "rounded-br-sm bg-[var(--fg)] text-[var(--bg)]" : "rounded-tl-sm bg-[var(--bg-alt)]")}>
+                        {message.content ? (
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                              a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="font-medium text-[var(--accent)] underline">{children}</a>,
+                              ul: ({ children }) => <ul className="my-2 list-disc space-y-1 pl-5">{children}</ul>,
+                              ol: ({ children }) => <ol className="my-2 list-decimal space-y-1 pl-5">{children}</ol>,
+                              p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                            }}
+                          >
+                            {message.content}
+                          </ReactMarkdown>
+                        ) : (
+                          <span className="inline-flex gap-1" aria-label="Juan está escribiendo">
+                            {[0, 1, 2].map((dot) => <span key={dot} className="h-2 w-2 animate-bounce rounded-full bg-[var(--fg-muted)]" style={{ animationDelay: `${dot * 120}ms` }} />)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <form
+                  onSubmit={(event) => { event.preventDefault(); send(input); }}
+                  className="border-t border-[var(--line)] bg-[var(--bg)] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+                >
+                  {error && <p className="mb-2 px-2 text-xs text-[var(--accent)]" role="alert">{error}</p>}
+                  <div className="flex items-end gap-2">
+                    <textarea
+                      ref={inputRef}
+                      rows={1}
+                      value={input}
+                      onChange={(event) => setInput(event.target.value.slice(0, 2_000))}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && !event.shiftKey) {
+                          event.preventDefault();
+                          send(input);
+                        }
+                      }}
+                      placeholder="Pregúntale a Juan…"
+                      disabled={streaming}
+                      className="max-h-28 min-h-11 flex-1 resize-none rounded-2xl border border-[var(--line)] bg-[var(--bg-alt)] px-4 py-3 text-base outline-none transition focus:border-[var(--accent)]"
+                    />
+                    {streaming ? (
+                      <button type="button" onClick={() => abortRef.current?.abort()} className="flex h-11 min-w-11 items-center justify-center rounded-2xl bg-[var(--accent)] px-3 text-xs text-white">Parar</button>
+                    ) : (
+                      <button type="submit" disabled={!input.trim()} aria-label="Enviar" className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--fg)] text-[var(--bg)] transition hover:bg-[var(--accent)] disabled:opacity-35">↑</button>
                     )}
                   </div>
-                </div>
-              ))}
-            </div>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                send(input);
-              }}
-              className="border-t border-[var(--line)] p-3"
-            >
-              {error && (
-                <p className="mb-2 px-2 text-xs text-[var(--accent)]">{error}</p>
-              )}
-              <div className="flex items-end gap-2">
-                <input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Escribile a Juan…"
-                  disabled={streaming}
-                  className="flex-1 rounded-full border border-[var(--line)] bg-[var(--bg)] px-4 py-2.5 text-sm outline-none focus:border-[var(--fg)]"
-                />
-                <button
-                  type="submit"
-                  disabled={streaming || !input.trim()}
-                  aria-label="Enviar"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--fg)] text-[var(--bg)] transition-colors hover:bg-[var(--accent)] disabled:opacity-40"
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
-                  </svg>
-                </button>
+                </form>
               </div>
-            </form>
-          </motion.div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </>
