@@ -1,7 +1,10 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
+import Image from "next/image";
 import type { Trip } from "@/lib/schema";
+import type { DestinationImage } from "@/lib/destination-image";
+import { ArrowRightIcon, MapTrifoldIcon, SparkleIcon } from "@phosphor-icons/react";
 import { formatDateRange } from "@/lib/utils";
 
 function hasMapPoints(trip: Trip): boolean {
@@ -9,7 +12,11 @@ function hasMapPoints(trip: Trip): boolean {
   if (trip.itinerary.some((day) => day.stops.some((stop) => stop.coordinates))) {
     return true;
   }
-  return trip.recommendations.some((recommendation) => recommendation.coordinates);
+  if (trip.recommendations.some((recommendation) => recommendation.coordinates)) return true;
+  const selectablePlaces =
+    trip.recommendations.length +
+    trip.itinerary.reduce((total, day) => total + day.stops.length, 0);
+  return selectablePlaces >= 2;
 }
 
 function coordinateLabel(trip: Trip): string {
@@ -20,7 +27,13 @@ function coordinateLabel(trip: Trip): string {
   ).toFixed(2)}° ${lng >= 0 ? "E" : "O"}`;
 }
 
-export default function TripHero({ trip }: { trip: Trip }) {
+export default function TripHero({
+  trip,
+  destinationImage,
+}: {
+  trip: Trip;
+  destinationImage?: DestinationImage | null;
+}) {
   const reduceMotion = useReducedMotion();
   const hasMap = hasMapPoints(trip);
   const heroInitial = reduceMotion ? false : { opacity: 0, y: 18 };
@@ -58,7 +71,7 @@ export default function TripHero({ trip }: { trip: Trip }) {
           <div className="trip-hero__copy">
             <div className="trip-hero__meta">
               <span className="trip-edition-pill">
-                <span aria-hidden="true">✦</span>
+                <SparkleIcon aria-hidden size={14} weight="fill" />
                 Edición {trip.destination}
               </span>
               <span>{formatDateRange(trip.startDate, trip.endDate)}</span>
@@ -79,32 +92,11 @@ export default function TripHero({ trip }: { trip: Trip }) {
             <div className="trip-action-row" aria-label="Acciones del viaje">
               <a href={primaryTarget} className="btn-primary">
                 {primaryLabel}
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  aria-hidden="true"
-                >
-                  <path d="M5 12h14M13 6l6 6-6 6" />
-                </svg>
+                <ArrowRightIcon size={17} weight="bold" aria-hidden />
               </a>
               {hasMap && (
                 <a href="#mapa" className="btn-ghost">
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    aria-hidden="true"
-                  >
-                    <path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3Z" />
-                    <path d="M9 3v15M15 6v15" />
-                  </svg>
+                  <MapTrifoldIcon size={18} weight="duotone" aria-hidden />
                   Mapa
                 </a>
               )}
@@ -121,6 +113,24 @@ export default function TripHero({ trip }: { trip: Trip }) {
               <span>VL / {coordinateLabel(trip)}</span>
               <span aria-hidden="true">↗</span>
             </div>
+
+            {destinationImage && (
+              <figure className="trip-passport__photo">
+                <Image
+                  src={destinationImage.src}
+                  alt={destinationImage.alt}
+                  fill
+                  priority
+                  sizes="(max-width: 1023px) calc(100vw - 40px), 420px"
+                  className="object-cover"
+                />
+                <figcaption>
+                  <a href={destinationImage.sourceUrl} target="_blank" rel="noopener noreferrer">
+                    {destinationImage.credit} · {destinationImage.license}
+                  </a>
+                </figcaption>
+              </figure>
+            )}
 
             <div className="trip-passport__stats">
               <div>

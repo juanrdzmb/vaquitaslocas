@@ -1,6 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  HouseLineIcon,
+  MapTrifoldIcon,
+  PathIcon,
+  SparkleIcon,
+} from "@phosphor-icons/react";
 
 type DockItem = {
   id: string;
@@ -74,47 +80,8 @@ export default function MobileTripDock({
 }
 
 function DockIcon({ name }: { name: DockItem["icon"] }) {
-  const common = {
-    width: 19,
-    height: 19,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: 1.8,
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-    "aria-hidden": true,
-  };
-
-  if (name === "home") {
-    return (
-      <svg {...common}>
-        <path d="m3 11 9-8 9 8" />
-        <path d="M5 10v10h14V10M9 20v-6h6v6" />
-      </svg>
-    );
-  }
-  if (name === "route") {
-    return (
-      <svg {...common}>
-        <circle cx="6" cy="19" r="2" />
-        <circle cx="18" cy="5" r="2" />
-        <path d="M8 19h3a3 3 0 0 0 3-3v-2a3 3 0 0 0-3-3h-1a3 3 0 0 1-3-3V7a2 2 0 0 1 2-2h7" />
-      </svg>
-    );
-  }
-  if (name === "map") {
-    return (
-      <svg {...common}>
-        <path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3Z" />
-        <path d="M9 3v15M15 6v15" />
-      </svg>
-    );
-  }
-  return (
-    <svg {...common}>
-      <path d="m12 3 1.2 4.1L17 9l-3.8 1.9L12 15l-1.2-4.1L7 9l3.8-1.9Z" />
-      <path d="m19 15 .7 2.3L22 18l-2.3.7L19 21l-.7-2.3L16 18l2.3-.7Z" />
-    </svg>
-  );
+  if (name === "home") return <HouseLineIcon size={20} weight="duotone" aria-hidden />;
+  if (name === "route") return <PathIcon size={20} weight="duotone" aria-hidden />;
+  if (name === "map") return <MapTrifoldIcon size={20} weight="duotone" aria-hidden />;
+  return <SparkleIcon size={20} weight="duotone" aria-hidden />;
 }

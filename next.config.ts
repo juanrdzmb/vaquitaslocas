@@ -19,7 +19,7 @@ const securityHeaders = [
       "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline'",
       "font-src 'self' data:",
-      "img-src 'self' data: blob: https://*.basemaps.cartocdn.com https://*.openstreetmap.org",
+      "img-src 'self' data: blob: https://*.basemaps.cartocdn.com https://*.openstreetmap.org https://upload.wikimedia.org",
       "connect-src 'self'",
       "worker-src 'self' blob:",
       "upgrade-insecure-requests",
@@ -30,6 +30,12 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  experimental: {
+    optimizePackageImports: ["@phosphor-icons/react"],
+  },
+  images: {
+    remotePatterns: [{ protocol: "https", hostname: "upload.wikimedia.org" }],
+  },
   async headers() {
     return [
       {

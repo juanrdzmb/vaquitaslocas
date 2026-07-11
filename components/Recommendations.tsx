@@ -3,8 +3,20 @@
 import { motion } from "framer-motion";
 import { useMemo, useState } from "react";
 import type { Recommendation } from "@/lib/schema";
-import { recoTypeEmoji, recoTypeLabel } from "@/lib/schema";
-import { googleDirectionsUrl } from "@/lib/utils";
+import { recoTypeLabel } from "@/lib/schema";
+import { googleDirectionsUrl, googleMapsUrl } from "@/lib/utils";
+import {
+  BarbellIcon,
+  BinocularsIcon,
+  BookOpenTextIcon,
+  BooksIcon,
+  CompassRoseIcon,
+  ForkKnifeIcon,
+  PaletteIcon,
+  PushPinIcon,
+  MapPinIcon,
+  NavigationArrowIcon,
+} from "@phosphor-icons/react";
 
 type Filter = "all" | "vegetarian" | "books" | "movement" | "walk";
 
@@ -25,7 +37,25 @@ function matches(item: Recommendation, filter: Filter): boolean {
   return item.type === "viewpoint" || /paseo|caminar|walking|walk|parque|park|sender|ruta|barrio|mirador/.test(haystack);
 }
 
-export default function Recommendations({ recommendations }: { recommendations: Recommendation[] }) {
+function RecommendationIcon({ type }: { type: Recommendation["type"] }) {
+  const props = { size: 25, weight: "duotone" as const, "aria-hidden": true };
+  if (type === "restaurant") return <ForkKnifeIcon {...props} />;
+  if (type === "library") return <BooksIcon {...props} />;
+  if (type === "bookstore") return <BookOpenTextIcon {...props} />;
+  if (type === "activity") return <BarbellIcon {...props} />;
+  if (type === "viewpoint") return <BinocularsIcon {...props} />;
+  if (type === "culture") return <PaletteIcon {...props} />;
+  if (type === "hidden_gem") return <CompassRoseIcon {...props} />;
+  return <PushPinIcon {...props} />;
+}
+
+export default function Recommendations({
+  recommendations,
+  destination,
+}: {
+  recommendations: Recommendation[];
+  destination: string;
+}) {
   const [filter, setFilter] = useState<Filter>("all");
   const visible = useMemo(() => recommendations.filter((item) => matches(item, filter)), [filter, recommendations]);
   if (!recommendations.length) return null;
@@ -64,8 +94,16 @@ export default function Recommendations({ recommendations }: { recommendations: 
       {visible.length > 0 ? (
         <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {visible.map((item, index) => {
+            const placeQuery = item.location
+              ? `${item.title}, ${item.location}`
+              : `${item.title}, ${destination}`;
+            const placeUrl = googleMapsUrl({
+              query: placeQuery,
+              lat: item.coordinates?.lat,
+              lng: item.coordinates?.lng,
+            });
             const directions = googleDirectionsUrl({
-              destination: item.location ? `${item.title}, ${item.location}` : item.title,
+              destination: placeQuery,
               lat: item.coordinates?.lat,
               lng: item.coordinates?.lng,
               travelMode: "walking",
@@ -80,7 +118,9 @@ export default function Recommendations({ recommendations }: { recommendations: 
                 className="group flex min-h-[22rem] flex-col rounded-[1.75rem] border border-[var(--line)] bg-[var(--bg)] p-5 transition hover:-translate-y-1 hover:border-[var(--accent)] hover:shadow-xl sm:p-6"
               >
                 <div className="flex items-start justify-between gap-4">
-                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--bg-alt)] text-xl text-[var(--accent)]" aria-hidden>{recoTypeEmoji(item.type)}</span>
+                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--bg-alt)] text-[var(--accent)]" aria-hidden>
+                    <RecommendationIcon type={item.type} />
+                  </span>
                   <span className="rounded-full border border-[var(--line)] px-3 py-1.5 font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--fg-muted)]">{recoTypeLabel(item.type)}</span>
                 </div>
                 <h3 className="mt-7 font-display text-3xl leading-[1.02] tracking-tightest">{item.title}</h3>
@@ -89,7 +129,14 @@ export default function Recommendations({ recommendations }: { recommendations: 
                 {item.reason && <p className="mt-4 border-l-2 border-[var(--accent)] pl-3 text-sm italic leading-relaxed">{item.reason}</p>}
                 <div className="mt-auto pt-6">
                   {item.tags && item.tags.length > 0 && <div className="mb-4 flex flex-wrap gap-1.5">{item.tags.slice(0, 4).map((tag) => <span key={tag} className="rounded-full bg-[var(--bg-alt)] px-2.5 py-1 text-[10px] text-[var(--fg-muted)]">{tag}</span>)}</div>}
-                  <a href={directions} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-[var(--fg)] px-4 text-xs font-medium text-[var(--bg)] transition group-hover:bg-[var(--accent)] group-hover:text-white">Llévame con Maps ↗</a>
+                  <div className="grid grid-cols-2 gap-2">
+                    <a href={placeUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-[var(--fg)] px-3 text-xs font-medium text-[var(--bg)] transition group-hover:bg-[var(--accent)] group-hover:text-white">
+                      <MapPinIcon size={15} weight="duotone" aria-hidden /> Ver lugar
+                    </a>
+                    <a href={directions} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-[var(--line)] px-3 text-xs font-medium transition hover:border-[var(--accent)]">
+                      <NavigationArrowIcon size={15} weight="duotone" aria-hidden /> Ir
+                    </a>
+                  </div>
                 </div>
               </motion.article>
             );

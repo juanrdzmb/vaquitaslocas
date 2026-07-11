@@ -10,6 +10,11 @@ import { extractWorkbookInBrowser } from "@/lib/excel-client";
 
 type Status = "idle" | "reading" | "generating" | "error";
 
+type GenerationEvent =
+  | { type: "progress"; progress: number; label: string }
+  | { type: "complete"; progress: 1; label: string; id: string }
+  | { type: "error"; error: string };
+
 export default function HomePage() {
   const router = useRouter();
   const controllerRef = useRef<AbortController | null>(null);
@@ -55,11 +60,11 @@ export default function HomePage() {
       );
 
       setStatus("generating");
-      setProgress(0.88);
+      setProgress(0.85);
       setLabel(
         `${workbook.sheets.length} hojas listas. Afinando rutas, comidas vegetarianas, libros y planes…`
       );
-      timeout = setTimeout(() => controller.abort(), 180_000);
+      timeout = setTimeout(() => controller.abort(), 290_000);
 
       const response = await fetch("/api/generate", {
         method: "POST",
@@ -68,27 +73,60 @@ export default function HomePage() {
         signal: controller.signal,
       });
 
-      const raw = await response.text();
-      let data: { id?: string; error?: string } = {};
-      try {
-        data = raw ? (JSON.parse(raw) as typeof data) : {};
-      } catch {
-        // Platform errors (including a proxy 413) may arrive as HTML/plain text.
-      }
-
       if (!response.ok) {
+        const raw = await response.text();
+        let errorMessage = "";
+        try {
+          errorMessage = (JSON.parse(raw) as { error?: string }).error ?? "";
+        } catch {
+          // Platform errors (including a proxy 413) may arrive as HTML/plain text.
+        }
         throw new Error(
-          data.error ||
+          errorMessage ||
             (response.status === 413
               ? "La guía compacta todavía es demasiado grande. Prueba dividiendo las hojas más extensas."
               : `El servidor respondió ${response.status}. Inténtalo otra vez.`)
         );
       }
-      if (!data.id) throw new Error("La guía se creó, pero no recibí su enlace.");
+      if (!response.body) throw new Error("El servidor no abrió el canal de progreso.");
 
-      setProgress(0.98);
-      setLabel("Lista. Abriendo el viaje…");
-      router.push(`/trip/${data.id}`);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let tripId = "";
+      const consume = (line: string) => {
+        if (!line.trim()) return;
+        let event: GenerationEvent;
+        try {
+          event = JSON.parse(line) as GenerationEvent;
+        } catch {
+          return;
+        }
+        if (event.type === "error") throw new Error(event.error);
+        if (event.type === "progress") {
+          setProgress((current) => Math.max(current, event.progress));
+          setLabel(event.label);
+        }
+        if (event.type === "complete") {
+          tripId = event.id;
+          setProgress(1);
+          setLabel(event.label);
+        }
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) consume(line);
+      }
+      if (buffer.trim()) consume(buffer);
+      if (!tripId) throw new Error("La guía se creó, pero no recibí su enlace.");
+
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      router.push(`/trip/${tripId}`);
     } catch (reason) {
       if (reason instanceof Error && reason.name === "AbortError") {
         if (controllerRef.current === controller) {

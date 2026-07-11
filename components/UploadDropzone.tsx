@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { isSupportedWorkbook } from "@/lib/excel-client";
 import { WORKBOOK_LIMITS } from "@/lib/workbook";
+import { UploadSimpleIcon } from "@phosphor-icons/react";
 
 type Props = {
   onFile: (file: File) => void;
@@ -104,10 +105,7 @@ export default function UploadDropzone({ onFile, onError, disabled }: Props) {
           Importador inteligente
         </span>
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--fg)] text-[var(--bg)] shadow-lg transition-transform group-hover:-translate-y-1" aria-hidden>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5" />
-            <path d="M4 15.5V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3.5" />
-          </svg>
+          <UploadSimpleIcon size={24} weight="duotone" />
         </span>
       </div>
 

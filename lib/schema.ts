@@ -193,7 +193,7 @@ export function inferRecommendationType(text: string): Recommendation["type"] {
 
 export function recoTypeLabel(type: Recommendation["type"]): string {
   const labels: Record<Recommendation["type"], string> = {
-    hidden_gem: "Joya oculta",
+    hidden_gem: "Desvío con sentido",
     restaurant: "Dónde comer",
     library: "Biblioteca",
     bookstore: "Librería",

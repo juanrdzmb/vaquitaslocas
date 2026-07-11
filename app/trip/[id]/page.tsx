@@ -12,6 +12,9 @@ import Budget from "@/components/Budget";
 import MapSection from "@/components/MapSection";
 import Recommendations from "@/components/Recommendations";
 import ChatPanel from "@/components/ChatPanel";
+import EasterEggSticker from "@/components/EasterEggSticker";
+import { easterEggFor } from "@/config/easter-eggs";
+import { getDestinationImage } from "@/lib/destination-image";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,7 +27,11 @@ function hasMapPoints(trip: Awaited<ReturnType<typeof getTrip>>): boolean {
   if (trip.itinerary.some((day) => day.stops.some((stop) => stop.coordinates))) {
     return true;
   }
-  return trip.recommendations.some((recommendation) => recommendation.coordinates);
+  if (trip.recommendations.some((recommendation) => recommendation.coordinates)) return true;
+  const selectablePlaces =
+    trip.recommendations.length +
+    trip.itinerary.reduce((total, day) => total + day.stops.length, 0);
+  return selectablePlaces >= 2;
 }
 
 export async function generateMetadata({ params }: Props) {
@@ -43,16 +50,30 @@ export default async function TripPage({ params }: Props) {
   const trip = await getTrip(id);
   if (!trip) notFound();
   const hasMap = hasMapPoints(trip);
+  const destinationImage = await getDestinationImage(trip.destination);
+  const tripEgg = easterEggFor("trip");
+  const footerEgg = easterEggFor("footer");
 
   return (
     <DestinationTheme trip={trip}>
       <TripAppShell trip={trip}>
-        <TripHero trip={trip} />
+        <TripHero trip={trip} destinationImage={destinationImage} />
         <TripNowCard trip={trip} now={Date.now()} />
 
+        {tripEgg && (
+          <aside className="container-editorial flex justify-end pt-3" aria-label="Secreto escondido">
+            <div className="group flex items-center gap-2 text-[10px] text-[var(--fg-muted)]">
+              <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-300 group-hover:max-w-44 group-hover:opacity-100">
+                No la toques. Claramente.
+              </span>
+              <EasterEggSticker egg={tripEgg} />
+            </div>
+          </aside>
+        )}
+
         <div className="trip-content">
-          <FlightsTrains segments={trip.transport} />
-          <Hotels stays={trip.hotels} />
+          <FlightsTrains segments={trip.transport} destination={trip.destination} />
+          <Hotels stays={trip.hotels} destination={trip.destination} />
           <Itinerary days={trip.itinerary} trip={trip} />
           <Budget items={trip.budget} />
 
@@ -62,10 +83,11 @@ export default async function TripPage({ params }: Props) {
               itinerary={trip.itinerary}
               recommendations={trip.recommendations}
               tripId={trip.id}
+              destination={trip.destination}
             />
           )}
 
-          <Recommendations recommendations={trip.recommendations} />
+          <Recommendations recommendations={trip.recommendations} destination={trip.destination} />
 
           {trip.tips.length > 0 && (
             <section className="container-editorial trip-tips py-16 md:py-24">
@@ -90,9 +112,11 @@ export default async function TripPage({ params }: Props) {
 
         <footer className="container-editorial trip-footer">
           <div>
-            <span className="trip-footer__mark" aria-hidden="true">
-              VL
-            </span>
+            {footerEgg ? (
+              <EasterEggSticker egg={footerEgg} variant="footer" />
+            ) : (
+              <span className="trip-footer__mark" aria-hidden="true">VL</span>
+            )}
             <p>
               Hecho para Amanda, con café, mapas y una cantidad poco razonable de
               cariño.

@@ -11,6 +11,9 @@ Una app de viaje hecha para Amanda: convierte sus Excel en una guía móvil úni
 - Tema visual determinista por destino, portada tipo pasaporte, tarjeta “Ahora / Después” y dock móvil.
 - Progreso de paradas y conversación guardados en el dispositivo.
 - Acciones de Maps, calendario `.ics`, impresión/PDF por día, compartir, reservas y check-in cuando existe un enlace real.
+- Maps separa **Ver lugar** de **Cómo llegar** y permite montar una ruta ordenada de hasta cinco lugares sin partir de la ubicación actual.
+- La generación responde como NDJSON en streaming: el porcentaje avanza con texto realmente recibido de DeepSeek y solo llega al 100 % cuando Neon ya guardó la guía.
+- Fotografías por destino desde Wikimedia Commons con crédito/licencia visibles, iconos duotono de Phosphor (MIT) y stickers PNG propios.
 - Neon Postgres con `DATABASE_URL`; JSON local únicamente en desarrollo.
 - Totales separados por moneda, geolocalización bajo permiso y mapa sin ubicaciones ficticias.
 
@@ -40,6 +43,18 @@ npm run dev
 ```
 
 Abre [http://localhost:3000](http://localhost:3000).
+
+## Cambiar la personalidad, los secretos y los PNG
+
+No hace falta buscar el prompt entre la lógica de la API:
+
+- `config/juan-personality.ts`: rasgos de Juan, palabras prohibidas, límites del humor, referencias literarias y ejemplos de tono bueno/malo.
+- `config/easter-eggs.ts`: texto, posición y `href` de cada secreto. Sustituye `href: "#"` por tu enlace; mientras siga en `#`, el sticker abre solo el mensaje troll.
+- `public/stickers/`: `coffee-detective.png`, `powerlifting-cow.png` y `tragic-book.png`. Puedes reemplazarlos conservando el nombre o cambiar la ruta en la configuración.
+
+Los PNG tienen fondo transparente y 560 × 560 px. Para que la página siga rápida, intenta que cualquier reemplazo pese menos de 400 KB. Las animaciones y el respeto a `prefers-reduced-motion` están en `components/EasterEggSticker.tsx`.
+
+Las fotos de destino no requieren API key. `lib/destination-image.ts` traduce el país o ciudad detectado, exige que el resultado de Commons coincida con el lugar y vuelve al tema gráfico local si no encuentra una imagen fiable.
 
 ## Neon y Vercel
 
@@ -74,13 +89,16 @@ app/
   api/chat/route.ts        chat contextual por streaming
   api/places/route.ts      lugares cercanos de OpenStreetMap
 components/                experiencia responsive, mapa, reservas, PDF y chat
+config/                    voz de Juan y easter eggs editables
 lib/
   excel-client.ts          extracción sparse en el navegador
   workbook.ts              validación y prompt de todas las hojas
   deepseek.ts              prompts, normalización y chat Juan
+  destination-image.ts     imagen libre y acreditada por destino
   db.ts                    Neon + fallback local de desarrollo
   trip-theme.ts            identidad visual por destino
 tests/                     regresiones de importación, fechas, tema y calendario
+public/stickers/           PNG transparentes de los secretos
 ```
 
 ## Privacidad y límites

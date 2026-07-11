@@ -104,7 +104,7 @@ function buildPrintHtml(
           const mapsLink = googleMapsUrl({
             query: stop.location
               ? `${stop.title}, ${stop.location}`
-              : stop.title,
+              : `${stop.title}, ${trip.destination}`,
             lat: stop.coordinates?.lat,
             lng: stop.coordinates?.lng,
           });

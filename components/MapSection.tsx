@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import TripMapClient from "./TripMapClient";
+import MapRouteBuilder from "./MapRouteBuilder";
 import type { NearbyPlace } from "@/lib/maps";
 import type {
   Coordinates,
@@ -10,12 +11,14 @@ import type {
   Recommendation,
 } from "@/lib/schema";
 import { recoTypeLabel } from "@/lib/schema";
+import { MapPinLineIcon } from "@phosphor-icons/react";
 
 type Props = {
   center: Coordinates | null;
   itinerary: ItineraryDay[];
   recommendations: Recommendation[];
   tripId: string;
+  destination: string;
 };
 
 type NearbySource = "trip" | "user";
@@ -137,6 +140,7 @@ export default function MapSection({
   itinerary,
   recommendations,
   tripId,
+  destination,
 }: Props) {
   const [showNearby, setShowNearby] = useState(false);
   const [nearby, setNearby] = useState<NearbyPlace[]>([]);
@@ -331,19 +335,7 @@ export default function MapSection({
           role="status"
           className="flex min-h-[300px] flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--line)] bg-[var(--bg-alt)] px-6 text-center"
         >
-          <svg
-            aria-hidden="true"
-            width="32"
-            height="32"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            className="mb-5 text-[var(--accent)]"
-          >
-            <path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" />
-            <circle cx="12" cy="10" r="2.5" />
-          </svg>
+          <MapPinLineIcon aria-hidden size={34} weight="duotone" className="mb-5 text-[var(--accent)]" />
           <h3 className="font-display text-2xl tracking-tightest">
             Aún no hay puntos para dibujar
           </h3>
@@ -491,6 +483,13 @@ export default function MapSection({
           )}
         </>
       )}
+
+      <MapRouteBuilder
+        itinerary={itinerary}
+        recommendations={recommendations}
+        nearbyPlaces={nearby}
+        destination={destination}
+      />
     </section>
   );
 }

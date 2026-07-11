@@ -2,7 +2,8 @@
 
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
-import { formatDate, googleDirectionsUrl } from "@/lib/utils";
+import { formatDate, googleDirectionsUrl, googleMapsUrl } from "@/lib/utils";
+import { MapPinIcon, NavigationArrowIcon } from "@phosphor-icons/react";
 import type { ItineraryDay, Trip } from "@/lib/schema";
 import PdfButton from "./PdfButton";
 import CalendarButton from "./CalendarButton";
@@ -116,7 +117,10 @@ export default function Itinerary({ days, trip }: { days: ItineraryDay[]; trip: 
             {active.stops.map((stop, index) => {
               const key = stopKey(active, index);
               const done = completed.has(key);
-              const destination = stop.location ? `${stop.title}, ${stop.location}` : stop.title;
+              const destination = stop.location
+                ? `${stop.title}, ${stop.location}`
+                : `${stop.title}, ${trip.destination}`;
+              const placeUrl = googleMapsUrl({ query: destination, lat: stop.coordinates?.lat, lng: stop.coordinates?.lng });
               const directions = googleDirectionsUrl({ destination, lat: stop.coordinates?.lat, lng: stop.coordinates?.lng, travelMode: "walking" });
               return (
                 <motion.li
@@ -156,7 +160,12 @@ export default function Itinerary({ days, trip }: { days: ItineraryDay[]; trip: 
                       )}
 
                       <div className="mt-5 flex flex-wrap gap-2">
-                        <a href={directions} target="_blank" rel="noopener noreferrer" className="btn-primary min-h-11 px-4 py-2.5 text-xs">Ir con Maps ↗</a>
+                        <a href={placeUrl} target="_blank" rel="noopener noreferrer" className="btn-primary min-h-11 px-4 py-2.5 text-xs">
+                          <MapPinIcon size={16} weight="duotone" aria-hidden /> Ver lugar
+                        </a>
+                        <a href={directions} target="_blank" rel="noopener noreferrer" className="btn-ghost min-h-11 px-4 py-2.5 text-xs">
+                          <NavigationArrowIcon size={16} weight="duotone" aria-hidden /> Cómo llegar
+                        </a>
                         <CalendarButton event={{ title: stop.title, date: active.date, startTime: stop.time, location: stop.location, description: stop.description }} label="Añadir" />
                       </div>
                     </div>

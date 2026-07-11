@@ -2,7 +2,8 @@
 
 import { motion } from "framer-motion";
 import type { HotelStay } from "@/lib/schema";
-import { formatCurrency, formatDate, googleDirectionsUrl, webSearchUrl } from "@/lib/utils";
+import { formatCurrency, formatDate, googleDirectionsUrl, googleMapsUrl, webSearchUrl } from "@/lib/utils";
+import { MapPinIcon, NavigationArrowIcon } from "@phosphor-icons/react";
 import CalendarButton from "./CalendarButton";
 
 const STATUS_META: Record<HotelStay["paymentStatus"], { label: string; dot: string }> = {
@@ -22,7 +23,7 @@ function totalsByCurrency(stays: HotelStay[]): Array<[string, number]> {
   return [...totals.entries()];
 }
 
-export default function Hotels({ stays }: { stays: HotelStay[] }) {
+export default function Hotels({ stays, destination }: { stays: HotelStay[]; destination: string }) {
   if (!stays.length) return null;
   const totals = totalsByCurrency(stays);
 
@@ -39,8 +40,16 @@ export default function Hotels({ stays }: { stays: HotelStay[] }) {
       <div className="grid gap-4 lg:grid-cols-2">
         {stays.map((stay, index) => {
           const status = STATUS_META[stay.paymentStatus];
+          const placeQuery = stay.address
+            ? `${stay.name}, ${stay.address}`
+            : `${stay.name}, ${stay.city || destination}`;
+          const placeUrl = googleMapsUrl({
+            query: placeQuery,
+            lat: stay.coordinates?.lat,
+            lng: stay.coordinates?.lng,
+          });
           const directions = googleDirectionsUrl({
-            destination: stay.address ? `${stay.name}, ${stay.address}` : stay.name,
+            destination: placeQuery,
             lat: stay.coordinates?.lat,
             lng: stay.coordinates?.lng,
             travelMode: "walking",
@@ -99,7 +108,14 @@ export default function Hotels({ stays }: { stays: HotelStay[] }) {
                     <p className="mt-1 font-display text-2xl">{stay.totalPrice == null ? "Precio por confirmar" : formatCurrency(stay.totalPrice, stay.currency)}</p>
                     {stay.pricePerNight != null && <p className="mt-1 font-mono text-[10px] text-[var(--fg-muted)]">{formatCurrency(stay.pricePerNight, stay.currency)} / noche</p>}
                   </div>
-                  <a href={directions} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center rounded-full border border-[var(--line)] bg-[var(--bg)] px-4 text-xs font-medium transition hover:border-[var(--accent)] hover:text-[var(--accent)]">Cómo llegar ↗</a>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <a href={placeUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-[var(--fg)] px-4 text-xs font-medium text-[var(--bg)] transition hover:bg-[var(--accent)] hover:text-white">
+                      <MapPinIcon size={15} weight="duotone" aria-hidden /> Ver hotel
+                    </a>
+                    <a href={directions} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-[var(--line)] bg-[var(--bg)] px-4 text-xs font-medium transition hover:border-[var(--accent)] hover:text-[var(--accent)]">
+                      <NavigationArrowIcon size={15} weight="duotone" aria-hidden /> Cómo llegar
+                    </a>
+                  </div>
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">

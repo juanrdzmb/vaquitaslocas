@@ -4,13 +4,27 @@ import { motion } from "framer-motion";
 import type { TransportSegment } from "@/lib/schema";
 import { formatCurrency, formatDate, googleMapsUrl, webSearchUrl } from "@/lib/utils";
 import CalendarButton from "./CalendarButton";
+import {
+  AirplaneTiltIcon,
+  ArrowsLeftRightIcon,
+  BusIcon,
+  TrainSimpleIcon,
+} from "@phosphor-icons/react";
 
-const TYPE_META: Record<TransportSegment["type"], { label: string; icon: string }> = {
-  flight: { label: "Vuelo", icon: "✈" },
-  train: { label: "Tren", icon: "↗" },
-  bus: { label: "Bus", icon: "▰" },
-  other: { label: "Traslado", icon: "→" },
+const TYPE_META: Record<TransportSegment["type"], { label: string }> = {
+  flight: { label: "Vuelo" },
+  train: { label: "Tren" },
+  bus: { label: "Bus" },
+  other: { label: "Traslado" },
 };
+
+function TransportIcon({ type }: { type: TransportSegment["type"] }) {
+  const props = { size: 24, weight: "duotone" as const, "aria-hidden": true };
+  if (type === "flight") return <AirplaneTiltIcon {...props} />;
+  if (type === "train") return <TrainSimpleIcon {...props} />;
+  if (type === "bus") return <BusIcon {...props} />;
+  return <ArrowsLeftRightIcon {...props} />;
+}
 
 function totalsByCurrency(segments: TransportSegment[]): Array<[string, number]> {
   const totals = new Map<string, number>();
@@ -22,7 +36,13 @@ function totalsByCurrency(segments: TransportSegment[]): Array<[string, number]>
   return [...totals.entries()];
 }
 
-export default function FlightsTrains({ segments }: { segments: TransportSegment[] }) {
+export default function FlightsTrains({
+  segments,
+  destination,
+}: {
+  segments: TransportSegment[];
+  destination: string;
+}) {
   if (!segments.length) return null;
   const totals = totalsByCurrency(segments);
 
@@ -45,7 +65,7 @@ export default function FlightsTrains({ segments }: { segments: TransportSegment
               ? webSearchUrl(`${segment.provider || segment.route} check-in online oficial`)
               : null);
           const mapUrl = googleMapsUrl({
-            query: `${segment.departure} ${segment.type === "flight" ? "airport" : "station"}`,
+            query: `${segment.departure} ${segment.type === "flight" ? "airport" : "station"}, ${destination}`,
             lat: segment.coordinates?.lat,
             lng: segment.coordinates?.lng,
           });
@@ -61,7 +81,9 @@ export default function FlightsTrains({ segments }: { segments: TransportSegment
             >
               <div className="grid gap-5 p-5 sm:p-6 lg:grid-cols-[0.55fr_1.35fr_0.7fr] lg:items-center">
                 <div className="flex items-center gap-4">
-                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--fg)] text-lg text-[var(--bg)]" aria-hidden>{meta.icon}</span>
+                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--fg)] text-[var(--bg)]" aria-hidden>
+                    <TransportIcon type={segment.type} />
+                  </span>
                   <div>
                     <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--accent)]">{meta.label}</p>
                     <p className="mt-1 text-sm text-[var(--fg-muted)]">{segment.date ? formatDate(segment.date) : "Fecha por confirmar"}</p>

@@ -10,7 +10,11 @@ function hasMapPoints(trip: Trip): boolean {
   if (trip.itinerary.some((day) => day.stops.some((stop) => stop.coordinates))) {
     return true;
   }
-  return trip.recommendations.some((recommendation) => recommendation.coordinates);
+  if (trip.recommendations.some((recommendation) => recommendation.coordinates)) return true;
+  const selectablePlaces =
+    trip.recommendations.length +
+    trip.itinerary.reduce((total, day) => total + day.stops.length, 0);
+  return selectablePlaces >= 2;
 }
 
 export default function TripAppShell({
