@@ -7,7 +7,7 @@ import {
   type TripVisualTheme,
   type TransportSegment,
 } from "./schema";
-import { geocode } from "./maps";
+import { geocodeVerifiedPlace } from "./maps";
 import { hasExplicitTravelYear } from "./workbook";
 import {
   CHAT_VOICE_GUIDE,
@@ -174,13 +174,13 @@ REGLAS DE EXACTITUD:
 4. Solo incluye bookingUrl/checkInUrl/websiteUrl si el Excel contiene ese enlace explícito. Nunca inventes una URL de gestión de reserva.
 5. No copies ni expongas códigos PNR, localizadores o credenciales aunque aparezcan en una celda.
 6. Sé conservador con coordenadas; usa null si no tienes certeza razonable.
-7. Separa paradas reales de notas y alternativas. Cada día debe tener entre 2 y 7 paradas principales; condensa cada descripción a un máximo de 160 caracteres.
+7. Esta salida es una VISTA PRÁCTICA, no el archivo maestro: las celdas originales se guardan y muestran aparte sin reescritura. Resume cada día sin contradecirlo, conserva el orden y usa hasta 12 paradas si hacen falta para que el recorrido principal tenga sentido.
 8. Extrae vuelos, trenes, buses y hoteles con sus alertas prácticas. Distingue dinero pagado, pendiente y cancelación gratuita.
 9. Agrupa el presupuesto sin sumar monedas diferentes.
-10. Genera 8-12 recomendaciones realmente alineadas con el perfil, marcando con tags como "vegetariano", "libros", "paseo" o "entrenamiento". No inventes nombres de negocios. Si un local concreto no aparece en el Excel y no tienes certeza alta de que exista, recomienda el tipo de lugar y el barrio/zona en vez de fabricar una marca. La ubicación debe incluir ciudad o zona suficiente para que Maps no mezcle destinos.
+10. El bloque recommendations contiene SOLO ideas nuevas de Juan, nunca una sustitución de restaurantes o planes ya escritos por Amanda. Genera 6-12 propuestas alineadas con el perfil y marca tags como "vegetariano", "libros", "paseo" o "entrenamiento". No inventes nombres de negocios. Si no tienes certeza alta de que exista un local concreto, recomienda el tipo de lugar y el barrio/zona. La ubicación debe incluir ciudad y país o una zona inequívoca para que Maps no mezcle destinos.
 11. Elige una familia visual permitida según el destino: metropolis, coastal, historic, alpine, tropical, desert o countryside.
 12. El título principal debe ser editorial y tener un máximo de 60 caracteres; usa el subtítulo para ampliar.
-13. Devuelve EXCLUSIVAMENTE un objeto JSON válido y relativamente compacto.
+13. Devuelve EXCLUSIVAMENTE un objeto JSON válido.
 14. Cada resumen, descripción, razón, consejo, título y subtítulo debe seguir la voz privada indicada abajo; no redactes copy turístico genérico.
 
 ${AMANDA_PROFILE}
@@ -205,7 +205,7 @@ const STRUCTURE_SCHEMA_HINT = `Devuelve exactamente esta forma (campos sin dato:
     "stops": [{"time":string|null,"title":string,"description":string,"location":string|null,"lat":number|null,"lng":number|null,"duration":string|null,"cost":string|null,"tags":string[]}]
   }],
   "budget": [{"category":string,"description":string,"amount":number,"currency":string}],
-  "recommendations": [{"type":"hidden_gem|restaurant|library|bookstore|activity|viewpoint|culture|other","title":string,"description":string,"reason":string,"location":string|null,"lat":number|null,"lng":number|null,"tags":string[]}],
+  "recommendations": [{"origin":"suggested","type":"hidden_gem|restaurant|library|bookstore|activity|viewpoint|culture|other","title":string,"description":string,"reason":string,"location":string|null,"lat":number|null,"lng":number|null,"tags":string[]}],
   "transport": [{"type":"flight|train|bus|other","date":string|null,"route":string,"departure":string,"arrival":string,"departureTime":string|null,"arrivalTime":string|null,"duration":string|null,"price":number|null,"currency":string,"notes":string|null,"lat":number|null,"lng":number|null,"provider":string|null,"serviceNumber":string|null,"terminal":string|null,"platform":string|null,"bookingUrl":string|null,"checkInUrl":string|null}],
   "hotels": [{"name":string,"city":string,"checkInDate":string|null,"checkOutDate":string|null,"checkInTime":string|null,"checkOutTime":string|null,"address":string|null,"pricePerNight":number|null,"nights":number|null,"totalPrice":number|null,"currency":string,"paymentStatus":"paid|pending|free_cancellation|unknown","cancellationDeadline":string|null,"notes":string|null,"lat":number|null,"lng":number|null,"phone":string|null,"websiteUrl":string|null,"bookingUrl":string|null,"checkInUrl":string|null}]
 }`;
@@ -295,7 +295,12 @@ ${STRUCTURE_SCHEMA_HINT}`;
 
   onProgress?.({ progress: 0.962, label: "Comprobando que Juan no haya inventado una terminal ni un drama…" });
   const trip = normalizeTrip(parsed, source);
+  trip.recommendations = trip.recommendations.filter(
+    (item) => !recommendationRepeatsSource(item, workbookText)
+  );
+  trip.tips = trip.tips.filter((tip) => tipSupportedBySource(tip, workbookText));
   applySourceDatePolicy(trip, workbookText);
+  await verifySuggestedPlaces(trip, onProgress);
   await verifyLodgingCoordinates(trip, onProgress);
   onProgress?.({ progress: 0.985, label: "Todo cuadra. Guardando la guía para Amanda…" });
   return trip;
@@ -307,7 +312,9 @@ function normalizeTrip(
 ): Omit<Trip, "id" | "createdAt"> {
   const currency = text(parsed.currency, "EUR", 8).toUpperCase() || "EUR";
   const itinerary = records(parsed.itinerary).slice(0, 40).map((day, dayIndex) => {
-    const dayNumber = finiteNumber(day.dayNumber) ?? dayIndex + 1;
+    // La posición del Excel manda. Evita que el modelo reinicie Praga en “Día 1”
+    // y rompa anclas, claves, rutas y el PDF.
+    const dayNumber = dayIndex + 1;
     return {
       dayNumber,
       date: optionalText(day.date, 40),
@@ -321,7 +328,9 @@ function normalizeTrip(
           title,
           description: narrativeText(stop.description, "", 650),
           location: optionalText(stop.location, 260) ?? undefined,
-          coordinates: coordinates(stop.lat, stop.lng),
+          // Las coordenadas propuestas por el modelo no se usan como verdad. Maps
+          // buscará por nombre + ciudad, y los negocios sugeridos se verifican aparte.
+          coordinates: null,
           duration: optionalText(stop.duration, 80) ?? undefined,
           cost: optionalText(stop.cost, 80) ?? undefined,
           tags: stringArray(stop.tags, 8, 40),
@@ -347,6 +356,7 @@ function normalizeTrip(
       const requestedType = text(item.type) as Recommendation["type"];
       return {
         id: `reco-${index + 1}-${slug(title) || "lugar"}`,
+        origin: "suggested" as const,
         type: recommendationTypes.includes(requestedType)
           ? requestedType
           : inferRecommendationType(`${title} ${text(item.description)}`),
@@ -354,13 +364,14 @@ function normalizeTrip(
         description: narrativeText(item.description, "", 500),
         reason: narrativeText(item.reason, "", 360),
         location: optionalText(item.location, 260) ?? undefined,
-        coordinates: coordinates(item.lat, item.lng),
+        coordinates: null,
         tags: stringArray(item.tags, 8, 40),
+        verificationStatus: "unverified" as const,
       };
     });
 
   const transportTypes: TransportSegment["type"][] = ["flight", "train", "bus", "other"];
-  const transport: TransportSegment[] = records(parsed.transport).slice(0, 30).map((item, index) => {
+  const transport = mergeDuplicateTransportSegments(records(parsed.transport).slice(0, 30).map((item, index) => {
     const requestedType = text(item.type) as TransportSegment["type"];
     return {
       id: `seg-${index + 1}-${slug(text(item.route, "trayecto")) || "trayecto"}`,
@@ -375,7 +386,8 @@ function normalizeTrip(
       price: finiteNumber(item.price),
       currency: text(item.currency, currency, 8).toUpperCase(),
       notes: optionalText(narrativeText(item.notes, "", 500), 500),
-      coordinates: coordinates(item.lat, item.lng),
+      // Las coordenadas del modelo no se aceptan como dato de reserva.
+      coordinates: null,
       provider: optionalText(item.provider, 120),
       serviceNumber: optionalText(item.serviceNumber, 80),
       terminal: optionalText(item.terminal, 80),
@@ -383,7 +395,7 @@ function normalizeTrip(
       bookingUrl: safeUrl(item.bookingUrl),
       checkInUrl: safeUrl(item.checkInUrl),
     };
-  });
+  }));
 
   const paymentStatuses: HotelStay["paymentStatus"][] = [
     "paid",
@@ -410,7 +422,8 @@ function normalizeTrip(
       paymentStatus: paymentStatuses.includes(status) ? status : "unknown",
       cancellationDeadline: optionalText(item.cancellationDeadline, 80),
       notes: optionalText(narrativeText(item.notes, "", 600), 600),
-      coordinates: coordinates(item.lat, item.lng),
+      // Se completa únicamente después de contrastar nombre y localidad.
+      coordinates: null,
       phone: optionalText(item.phone, 80),
       websiteUrl: safeUrl(item.websiteUrl),
       bookingUrl: safeUrl(item.bookingUrl),
@@ -446,6 +459,60 @@ function normalizeTrip(
     sourceFileName: source.fileName,
     sourceSheetCount: source.sheetCount,
   };
+}
+
+function transportDetailScore(segment: TransportSegment): number {
+  return [
+    segment.departureTime,
+    segment.arrivalTime,
+    segment.duration,
+    segment.provider,
+    segment.serviceNumber,
+    segment.terminal,
+    segment.platform,
+    segment.notes,
+  ].filter(Boolean).length;
+}
+
+/**
+ * Algunas hojas de presupuesto repiten “Budapest-Praga · 34€” sin decir que
+ * es tren. Si el mismo trayecto/fecha aparece después con horarios y estación,
+ * conserva esa versión rica y hereda únicamente el precio que le faltaba.
+ */
+export function mergeDuplicateTransportSegments(
+  segments: TransportSegment[]
+): TransportSegment[] {
+  const merged: TransportSegment[] = [];
+  const keys = new Map<string, number>();
+  for (const segment of segments) {
+    const key = [
+      comparable(segment.date),
+      comparable(segment.route) ||
+        `${comparable(segment.departure)} ${comparable(segment.arrival)}`,
+    ].join("|");
+    const existingIndex = keys.get(key);
+    if (existingIndex == null || !comparable(segment.date)) {
+      keys.set(key, merged.length);
+      merged.push(segment);
+      continue;
+    }
+
+    const existing = merged[existingIndex];
+    const richer =
+      transportDetailScore(segment) > transportDetailScore(existing)
+        ? segment
+        : existing;
+    const other = richer === segment ? existing : segment;
+    merged[existingIndex] = {
+      ...richer,
+      price: richer.price ?? other.price,
+      currency: richer.currency || other.currency,
+      bookingUrl: richer.bookingUrl ?? other.bookingUrl,
+      checkInUrl: richer.checkInUrl ?? other.checkInUrl,
+      notes: richer.notes ?? other.notes,
+    };
+  }
+  return merged;
 }
 
 function normalizeVisualTheme(value: unknown, destination: string): TripVisualTheme {
@@ -541,13 +608,18 @@ async function verifyLodgingCoordinates(
   trip: Omit<Trip, "id" | "createdAt">,
   onProgress?: GenerationProgressCallback
 ): Promise<void> {
-  const candidates = trip.hotels.filter((hotel) => hotel.address).slice(0, 8);
+  const candidates = trip.hotels
+    .filter((hotel) => hotel.address || (hotel.name && hotel.city))
+    .slice(0, 8);
   if (candidates.length) {
-    onProgress?.({ progress: 0.968, label: "Comprobando hoteles para que Maps no mande a Amanda al océano…" });
+    onProgress?.({ progress: 0.976, label: "Comprobando hoteles para que Maps no mande a Amanda al océano…" });
   }
   for (let index = 0; index < candidates.length; index += 1) {
     const hotel = candidates[index];
-    const verified = await geocode(`${hotel.address}, ${hotel.city}`);
+    const verified = await geocodeVerifiedPlace(
+      hotel.name,
+      [hotel.address, hotel.city].filter(Boolean).join(", ")
+    );
     if (verified) {
       hotel.coordinates = verified;
       const addressKey = comparable(hotel.address).slice(0, 28);
@@ -569,11 +641,95 @@ async function verifyLodgingCoordinates(
       await new Promise((resolve) => setTimeout(resolve, 1_050));
     }
     onProgress?.({
-      progress: 0.968 + ((index + 1) / candidates.length) * 0.014,
+      progress: 0.976 + ((index + 1) / candidates.length) * 0.006,
       label: `Ubicación ${index + 1} de ${candidates.length} comprobada…`,
     });
   }
   trip.mapCenter = computeMapCenter(trip.itinerary, trip.recommendations, trip.hotels);
+}
+
+function isConceptRecommendation(item: Recommendation): boolean {
+  return /^(busca|ruta|paseo|una? |alg[uú]n|caf[eé] (?:tranquilo|literario)|librer[ií]a (?:con|independiente)|gimnasio|entrenamiento|clase|sesi[oó]n)/i.test(
+    item.title.trim()
+  );
+}
+
+function safeConceptCopy(item: Recommendation, destination: string): void {
+  const interest = item.tags?.slice(0, 2).join(" y ") || "tu ritmo del viaje";
+  item.coordinates = null;
+  item.verificationStatus = "concept";
+  item.description = `${item.title} por ${item.location || destination}. Es una idea flexible, no una reserva ni un negocio que yo esté dando por confirmado.`;
+  item.reason = `Encaja con ${interest}; confirma acceso u horario si decides hacerlo. Yo ya he aportado mi sacrificio administrativo imaginario.`;
+}
+
+const SOURCE_RECOMMENDATION_GENERIC = new Set([
+  "actividad", "anticuario", "bar", "bistro", "budapest", "cafe", "ciudad",
+  "biblioteca", "libreria", "mirador", "monasterio", "parque", "praga",
+  "restaurant", "restaurante", "ruta", "the", "viaje",
+]);
+
+export function recommendationRepeatsSource(
+  item: Pick<Recommendation, "title">,
+  workbookText: string
+): boolean {
+  const titleTokens = comparable(item.title)
+    .split(" ")
+    .filter(
+      (token) => token.length >= 4 && !SOURCE_RECOMMENDATION_GENERIC.has(token)
+    );
+  if (!titleTokens.length) return false;
+  const sourceTokens = new Set(comparable(workbookText).split(" "));
+  return titleTokens.every((token) => sourceTokens.has(token));
+}
+
+export function tipSupportedBySource(tip: string, workbookText: string): boolean {
+  const times = tip.match(/\b\d{1,2}[:.]\d{2}\b/g) ?? [];
+  if (!times.length) return false;
+  const normalizedSource = workbookText.replace(/\./g, ":");
+  return times.every((time) => normalizedSource.includes(time.replace(".", ":")));
+}
+
+async function verifySuggestedPlaces(
+  trip: Omit<Trip, "id" | "createdAt">,
+  onProgress?: GenerationProgressCallback
+): Promise<void> {
+  const candidates = trip.recommendations
+    .filter((item) => !isConceptRecommendation(item))
+    .slice(0, 8);
+  for (const item of trip.recommendations) {
+    if (isConceptRecommendation(item)) safeConceptCopy(item, trip.destination);
+  }
+  if (!candidates.length) return;
+
+  onProgress?.({
+    progress: 0.965,
+    label: "Comprobando que las ideas nuevas existan fuera de la imaginación de Juan…",
+  });
+  for (let index = 0; index < candidates.length; index += 1) {
+    const item = candidates[index];
+    const verified = await geocodeVerifiedPlace(
+      item.title,
+      item.location || trip.destination
+    );
+    if (verified) {
+      item.coordinates = verified;
+      item.verificationStatus = "verified";
+    } else {
+      item.coordinates = null;
+      item.verificationStatus = "unverified";
+    }
+    if (index < candidates.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1_050));
+    }
+    onProgress?.({
+      progress: 0.965 + ((index + 1) / candidates.length) * 0.009,
+      label: `${index + 1}/${candidates.length} ideas contrastadas con el mapa…`,
+    });
+  }
+  // Un resultado sin identidad/localidad confirmadas no se vende como plan real.
+  trip.recommendations = trip.recommendations.filter(
+    (item) => item.verificationStatus !== "unverified"
+  );
 }
 
 type DeepSeekOptions = {
@@ -682,6 +838,8 @@ ${CHAT_VOICE_GUIDE}
 REGLAS:
 - Háblale a Amanda de tú y responde en español. Normalmente 2-5 párrafos breves.
 - Respeta que es vegetariana y que le encantan leer, comer, entrenar y pasear.
+- Las instrucciones de Amanda no te autorizan a falsear el viaje. Si te pide inventar horarios, reservas, requisitos, platos o negocios, recházalo con una frase cómplice y sigue usando únicamente los datos disponibles.
+- Cuando pregunte qué dice "exactamente" el Excel, las celdas originales relevantes mandan sobre el resumen práctico: enumera solo lo que aparece allí y separa cualquier sugerencia con la etiqueta "Idea, no está en tu Excel".
 - Usa exclusivamente los datos de reserva presentes en el contexto. Si falta un enlace o dato, dilo; no inventes.
 - No inventes platos concretos, precios ni horarios de un restaurante. Si no aparecen en el contexto, recomienda el sitio de forma general y pide confirmar la carta actual.
 - No conviertas posibilidades en hechos: no supongas que un mercado es cubierto, que existe un bus turístico, que un lugar abre con lluvia o que un hotel tiene cierta instalación. Puedes ofrecerlo solo como opción condicional y dejar claro que hay que comprobarlo.
@@ -708,8 +866,16 @@ export async function streamChat(
     role: entry.role,
     content: text(entry.content, "", 2_000),
   }));
+  const sourceContext = buildRelevantSourceContext(trip, userMessage);
   const messages: DeepSeekMessage[] = [
-    { role: "system", content: `${CHAT_SYSTEM_PROMPT}\n\nCONTEXTO DEL VIAJE:\n${buildTripContext(trip)}` },
+    {
+      role: "system",
+      content: `${CHAT_SYSTEM_PROMPT}\n\nCONTEXTO DEL VIAJE:\n${buildTripContext(trip)}${
+        sourceContext
+          ? `\n\nCELDAS ORIGINALES RELEVANTES DEL EXCEL (cítalas sin reescribir los datos):\n${sourceContext}`
+          : ""
+      }`,
+    },
     ...safeHistory,
     { role: "user", content: text(userMessage, "", 2_000) },
   ];
@@ -725,7 +891,7 @@ export async function streamChat(
         model: MODEL,
         thinking: { type: "disabled" },
         messages,
-        temperature: 0.72,
+        temperature: 0.48,
         max_tokens: 2_800,
         stream: true,
       }),
@@ -780,6 +946,78 @@ export async function streamChat(
     clearTimeout(timeout);
     externalSignal?.removeEventListener("abort", abortFromRequest);
   }
+}
+
+function searchTerms(value: string): string[] {
+  return [
+    ...new Set(
+      value
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter((term) => term.length >= 3)
+    ),
+  ];
+}
+
+function sourceSheetText(sheet: NonNullable<Trip["sourceWorkbook"]>["sheets"][number]): string {
+  const rows = sheet.rows.map((row) =>
+    row.cells
+      .map((cell) => `${cell.value}${cell.url ? ` <${cell.url}>` : ""}`)
+      .join(" | ")
+  );
+  return `## ${sheet.name}\n${rows.join("\n")}`;
+}
+
+/**
+ * El chat no vuelve a enviar las 15 hojas en cada pregunta. Selecciona las que
+ * coinciden con la consulta (y conserva un índice) para ahorrar tokens sin
+ * perder restaurantes, recorridos o notas que no entraron en el resumen IA.
+ */
+export function buildRelevantSourceContext(
+  trip: Trip,
+  userMessage: string,
+  maxChars = 14_000
+): string {
+  const source = trip.sourceWorkbook;
+  if (!source?.sheets.length) return "";
+  const terms = searchTerms(userMessage);
+  const normalizedQuestion = searchTerms(userMessage).join(" ");
+  const asksForFood = /restaur|comer|comida|caf[eé]|bar|brunch|veget/.test(
+    normalizedQuestion
+  );
+  const asksForBooking = /hotel|vuelo|tren|reserva|check|cancel|precio/.test(
+    normalizedQuestion
+  );
+  const requestedDay = /d[ií]a\s*(\d{1,2})/i.exec(userMessage)?.[1];
+
+  const ranked = source.sheets
+    .map((sheet, index) => {
+      const content = sourceSheetText(sheet);
+      const normalized = searchTerms(`${sheet.name} ${content}`).join(" ");
+      let score = index === 0 ? 0.2 : 0;
+      for (const term of terms) if (normalized.includes(term)) score += 1;
+      if (asksForFood && /restaur|caf[eé]|comer/i.test(sheet.name)) score += 8;
+      if (asksForBooking && /vuelo|hotel|resumen|reserva/i.test(`${sheet.name} ${content.slice(0, 500)}`)) score += 5;
+      if (requestedDay && new RegExp(`d[ií]a\\s*${requestedDay}(?:\\D|$)`, "i").test(`${sheet.name} ${content.slice(0, 180)}`)) score += 10;
+      return { sheet, content, score, index };
+    })
+    .sort((a, b) => b.score - a.score || a.index - b.index);
+
+  const indexLine = `Hojas disponibles: ${source.sheets.map((sheet) => sheet.name).join(", ")}.`;
+  const sections = [indexLine];
+  let used = indexLine.length;
+  for (const candidate of ranked) {
+    if (candidate.score <= 0 && sections.length > 2) break;
+    const remaining = maxChars - used - 2;
+    if (remaining < 300) break;
+    const section = candidate.content.slice(0, remaining);
+    sections.push(section);
+    used += section.length + 2;
+    if (section.length < candidate.content.length) break;
+  }
+  return sections.join("\n\n");
 }
 
 function buildTripContext(trip: Trip): string {

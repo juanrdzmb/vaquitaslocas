@@ -3,6 +3,8 @@
 import { useState } from "react";
 import type { Trip, ItineraryDay } from "@/lib/schema";
 import { formatDate, formatCurrency, googleMapsUrl } from "@/lib/utils";
+import { matchSourceSheetForDay } from "@/lib/source-workbook";
+import { DownloadSimpleIcon } from "@phosphor-icons/react";
 
 type Props = {
   trip: Trip;
@@ -26,13 +28,15 @@ function escapeHtml(value: unknown): string {
 
 export default function PdfButton({ trip, day, full }: Props) {
   const [generating, setGenerating] = useState(false);
+  const [printError, setPrintError] = useState("");
 
-  function handlePrint() {
+  async function handlePrint() {
     setGenerating(true);
+    setPrintError("");
 
     const printWindow = window.open("", "_blank", "width=800,height=900");
     if (!printWindow) {
-      window.print();
+      setPrintError("El navegador bloqueó la ventana. Permite ventanas emergentes y vuelve a tocar el botón.");
       setGenerating(false);
       return;
     }
@@ -54,36 +58,65 @@ export default function PdfButton({ trip, day, full }: Props) {
     printWindow.document.write(html);
     printWindow.document.close();
 
-    setTimeout(() => {
-      try {
-        printWindow.focus();
-        printWindow.print();
-      } finally {
-        setGenerating(false);
-      }
-    }, 500);
+    try {
+      await waitForPrintAssets(printWindow);
+      printWindow.focus();
+      printWindow.print();
+    } catch {
+      setPrintError("No pude preparar todas las imágenes. Inténtalo otra vez.");
+    } finally {
+      setGenerating(false);
+    }
   }
 
   return (
-    <button
-      type="button"
-      onClick={handlePrint}
-      disabled={generating}
-      aria-busy={generating}
-      className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-[var(--line)] px-4 py-2 text-xs font-medium transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)] disabled:cursor-not-allowed disabled:opacity-40"
-    >
-      {generating ? (
-        <span
-          aria-hidden="true"
-          className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--line)] border-t-[var(--accent)]"
-        />
-      ) : (
-        <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-        </svg>
-      )}
-      {generating ? "Abriendo…" : full ? "PDF del viaje" : "PDF del día"}
-    </button>
+    <span className="inline-flex flex-col items-start gap-1">
+      <button
+        type="button"
+        onClick={handlePrint}
+        disabled={generating}
+        aria-busy={generating}
+        className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-[var(--line)] px-4 py-2 text-xs font-medium transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)] disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        {generating ? (
+          <span
+            aria-hidden="true"
+            className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--line)] border-t-[var(--accent)]"
+          />
+        ) : (
+          <DownloadSimpleIcon size={15} weight="duotone" aria-hidden />
+        )}
+        {generating ? "Preparando…" : full ? "Guardar PDF del viaje" : "Guardar PDF del día"}
+      </button>
+      {printError && <span role="alert" className="max-w-64 text-[11px] leading-snug text-[var(--accent)]">{printError}</span>}
+    </span>
+  );
+}
+
+async function waitForPrintAssets(printWindow: Window): Promise<void> {
+  const document = printWindow.document;
+  const images = Array.from(document.images).map(async (image) => {
+    if (!image.complete) {
+      await new Promise<void>((resolve) => {
+        image.addEventListener("load", () => resolve(), { once: true });
+        image.addEventListener("error", () => resolve(), { once: true });
+      });
+    }
+    try {
+      await image.decode?.();
+    } catch {
+      // Una imagen que no decodifica no debe bloquear el resto del documento.
+    }
+  });
+  const fonts = document.fonts?.ready ?? Promise.resolve();
+  await Promise.race([
+    Promise.all([fonts, ...images]),
+    new Promise((resolve) => setTimeout(resolve, 5_000)),
+  ]);
+  await new Promise<void>((resolve) =>
+    printWindow.requestAnimationFrame(() =>
+      printWindow.requestAnimationFrame(() => resolve())
+    )
   );
 }
 
@@ -173,6 +206,40 @@ function buildPrintHtml(
         .join("")
     : "";
 
+  const sourceSheets = trip.sourceWorkbook
+    ? days.length === trip.itinerary.length
+      ? trip.sourceWorkbook.sheets
+      : days
+          .map((item) => matchSourceSheetForDay(trip.sourceWorkbook, item))
+          .filter((sheet): sheet is NonNullable<typeof sheet> => Boolean(sheet))
+    : [];
+  const sourceHtml = sourceSheets
+    .map((sheet) => {
+      const rows = sheet.rows
+        .map(
+          (row) => `<div class="source-row">
+            <span class="source-number">${escapeHtml(String(row.row))}</span>
+            <div>${row.cells
+              .map((cell) => {
+                const link = cell.url || (/^https?:\/\//i.test(cell.value) ? cell.value : "");
+                const value = `<span>${escapeHtml(cell.value)}</span>`;
+                return link
+                  ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">${value}</a>`
+                  : value;
+              })
+              .join('<span class="cell-separator"> · </span>')}</div>
+          </div>`
+        )
+        .join("");
+      const images = (sheet.images ?? [])
+        .map(
+          (image) => `<figure class="source-image"><img src="${image.dataUrl}" alt="${escapeHtml(image.alt || "Imagen incrustada en el Excel")}"><figcaption>Imagen original · fila ${escapeHtml(image.row)}</figcaption></figure>`
+        )
+        .join("");
+      return `<section class="source-sheet"><h3>${escapeHtml(sheet.name)}</h3>${rows}${images}</section>`;
+    })
+    .join("");
+
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -215,6 +282,15 @@ function buildPrintHtml(
   .t-route { flex: 1; }
   .t-date, .t-time { color: #6b6b6b; }
   .t-price { color: #b5532f; font-weight: bold; }
+  .source-sheet { margin: 0 0 24px; break-inside: auto; }
+  .source-sheet h3 { font-size: 18px; margin: 0 0 8px; padding: 8px 10px; background: #f3ece4; border-radius: 8px; }
+  .source-row { display: grid; grid-template-columns: 28px 1fr; gap: 8px; padding: 5px 0; border-bottom: 1px solid #eee; font: 12px/1.45 Arial, sans-serif; break-inside: avoid; }
+  .source-number { color: #999; font: 10px/1.6 monospace; text-align: right; }
+  .source-row a { color: #8f3f22; }
+  .cell-separator { color: #aaa; }
+  .source-image { margin: 12px 0; break-inside: avoid; }
+  .source-image img { display: block; max-width: 100%; max-height: 420px; object-fit: contain; border: 1px solid #ddd; border-radius: 8px; }
+  .source-image figcaption { margin-top: 4px; color: #777; font: 10px Arial, sans-serif; }
   .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #ddd; text-align: center; color: #888; font-size: 12px; font-style: italic; }
   @media print { body { max-width: none; } }
 </style>
@@ -230,7 +306,9 @@ function buildPrintHtml(
 
   ${hotelsHtml ? `<h2>Hoteles</h2>${hotelsHtml}` : ""}
 
-  <h2>${days.length === 1 ? "Día del viaje" : "Itinerario completo"}</h2>
+  ${sourceHtml ? `<h2>Texto original del Excel</h2><p class="summary">Aquí está lo que escribió Amanda, sin resumir ni reescribir.</p>${sourceHtml}` : ""}
+
+  <h2>${days.length === 1 ? "Vista práctica del día" : "Vista práctica del itinerario"}</h2>
   ${dayHtml}
 
   <div class="footer">Hecho con café y corazón · VaquitasLocas</div>

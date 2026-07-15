@@ -93,7 +93,7 @@ function buildCandidates(
       id: `nearby-${place.id}`,
       title: place.name,
       context: `${place.category} · cerca del mapa`,
-      query: place.name,
+      query: `${place.name}, ${destination}`,
       lat: place.coordinates.lat,
       lng: place.coordinates.lng,
     });
@@ -193,12 +193,12 @@ export default function MapRouteBuilder({
               la ruta antes del viaje sin que Maps decida empezar desde tu sofá.
             </p>
           </div>
-          <label className="flex min-h-11 shrink-0 items-center gap-3 rounded-full border border-[var(--line)] bg-[var(--bg-alt)] px-4 text-xs">
+          <label className="flex min-h-12 shrink-0 items-center gap-3 rounded-full border border-[var(--line)] bg-[var(--bg-alt)] px-4 text-xs">
             <span className="text-[var(--fg-muted)]">Moverse</span>
             <select
               value={mode}
               onChange={(event) => setMode(event.target.value as RouteMode)}
-              className="min-h-9 bg-transparent font-medium outline-none"
+              className="min-h-11 bg-transparent font-medium outline-none"
               aria-label="Medio de transporte para la ruta"
             >
               {ROUTE_MODES.map((item) => (
@@ -243,32 +243,37 @@ export default function MapRouteBuilder({
                       : "border-[var(--line)] bg-[var(--bg)]"
                   }`}
                 >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    disabled={limitReached}
-                    onChange={() => toggleCandidate(candidate)}
-                    aria-label={`${checked ? "Quitar" : "Añadir"} ${candidate.title} de la ruta`}
-                    className="h-5 w-5 shrink-0 accent-[var(--accent)] disabled:opacity-40"
-                  />
                   <button
                     type="button"
                     onClick={() => toggleCandidate(candidate)}
                     disabled={limitReached}
-                    className="min-w-0 flex-1 py-1 text-left disabled:cursor-not-allowed disabled:opacity-50"
+                    aria-pressed={checked}
+                    className="flex min-h-11 min-w-0 flex-1 items-center gap-3 text-left disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <span className="block truncate text-sm font-medium">
-                      {candidate.title}
+                    <span
+                      aria-hidden
+                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border text-sm ${
+                        checked
+                          ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-ink)]"
+                          : "border-[var(--line)]"
+                      }`}
+                    >
+                      {checked ? "✓" : ""}
                     </span>
-                    <span className="mt-0.5 block truncate text-[11px] text-[var(--fg-muted)]">
-                      {candidate.context}
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium">
+                        {candidate.title}
+                      </span>
+                      <span className="mt-0.5 block truncate text-[11px] text-[var(--fg-muted)]">
+                        {candidate.context}
+                      </span>
                     </span>
                   </button>
                   <a
-                    href={googleMapsUrl(candidate)}
+                    href={googleMapsUrl({ ...candidate, preferCoordinates: true })}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex min-h-10 shrink-0 items-center rounded-full px-2.5 text-[11px] font-medium text-[var(--accent)] hover:bg-[var(--bg-alt)] hover:underline"
+                    className="inline-flex min-h-11 shrink-0 items-center rounded-full px-3 text-[11px] font-medium text-[var(--accent)] hover:bg-[var(--bg-alt)] hover:underline"
                     aria-label={`Ver ${candidate.title} en Google Maps`}
                   >
                     Ver lugar ↗
@@ -309,7 +314,7 @@ export default function MapRouteBuilder({
                     type="button"
                     onClick={() => moveCandidate(index, -1)}
                     disabled={index === 0}
-                    className="flex h-9 w-9 items-center justify-center rounded-full text-sm hover:bg-[var(--bg-alt)] disabled:opacity-25"
+                    className="flex h-11 w-11 items-center justify-center rounded-full text-sm hover:bg-[var(--bg-alt)] disabled:opacity-25"
                     aria-label={`Subir ${candidate.title}`}
                   >
                     ↑
@@ -318,7 +323,7 @@ export default function MapRouteBuilder({
                     type="button"
                     onClick={() => moveCandidate(index, 1)}
                     disabled={index === selected.length - 1}
-                    className="flex h-9 w-9 items-center justify-center rounded-full text-sm hover:bg-[var(--bg-alt)] disabled:opacity-25"
+                    className="flex h-11 w-11 items-center justify-center rounded-full text-sm hover:bg-[var(--bg-alt)] disabled:opacity-25"
                     aria-label={`Bajar ${candidate.title}`}
                   >
                     ↓
@@ -326,7 +331,7 @@ export default function MapRouteBuilder({
                   <button
                     type="button"
                     onClick={() => toggleCandidate(candidate)}
-                    className="flex h-9 w-9 items-center justify-center rounded-full text-lg text-[var(--fg-muted)] hover:bg-[var(--bg-alt)] hover:text-[var(--accent)]"
+                    className="flex h-11 w-11 items-center justify-center rounded-full text-lg text-[var(--fg-muted)] hover:bg-[var(--bg-alt)] hover:text-[var(--accent)]"
                     aria-label={`Quitar ${candidate.title} de la ruta`}
                   >
                     ×

@@ -4,10 +4,19 @@ export function cn(...inputs: ClassValue[]) {
   return clsx(inputs);
 }
 
+export function explicitDateKey(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  return match ? `${match[1]}-${match[2]}-${match[3]}` : null;
+}
+
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return "Sin fecha";
   try {
     const localDate = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+    // `new Date("14 septiembre")` inventa el año 2001 en algunos navegadores.
+    // Si Amanda no escribió un año, se muestra su etiqueta tal cual.
+    if (!localDate && !/\b(?:19|20)\d{2}\b/.test(iso)) return iso;
     const d = localDate
       ? new Date(Number(localDate[1]), Number(localDate[2]) - 1, Number(localDate[3]))
       : new Date(iso);
@@ -97,14 +106,19 @@ export function googleMapsUrl(opts: {
   query?: string | null;
   lat?: number | null;
   lng?: number | null;
+  preferCoordinates?: boolean;
 }): string {
-  const { query, lat, lng } = opts;
+  const { query, lat, lng, preferCoordinates = false } = opts;
   const cleanQuery = cleanMapQuery(query);
+  const coordinates = coordinatesValue({ lat, lng });
+  if (preferCoordinates && coordinates) {
+    const params = new URLSearchParams({ api: "1", query: coordinates });
+    return `https://www.google.com/maps/search/?${params.toString()}`;
+  }
   if (cleanQuery) {
     const params = new URLSearchParams({ api: "1", query: cleanQuery });
     return `https://www.google.com/maps/search/?${params.toString()}`;
   }
-  const coordinates = coordinatesValue({ lat, lng });
   if (coordinates) {
     const params = new URLSearchParams({ api: "1", query: coordinates });
     return `https://www.google.com/maps/search/?${params.toString()}`;

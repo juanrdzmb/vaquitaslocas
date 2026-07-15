@@ -7,6 +7,7 @@ import UploadDropzone from "@/components/UploadDropzone";
 import GeneratingState from "@/components/GeneratingState";
 import ThemeToggle from "@/components/ThemeToggle";
 import { extractWorkbookInBrowser } from "@/lib/excel-client";
+import TravelLibrary from "@/components/TravelLibrary";
 
 type Status = "idle" | "reading" | "generating" | "error";
 
@@ -240,10 +241,12 @@ export default function HomePage() {
 
         {!busy && (
           <p className="mt-5 text-center text-xs leading-relaxed text-[var(--fg-muted)]">
-            El Excel se abre en este dispositivo. Enviamos solo el texto útil de las celdas para organizar la guía; el archivo original y sus imágenes no se guardan.
+            El Excel se abre en este dispositivo. Conservamos una copia estructurada de sus celdas e imágenes incrustadas para que la guía no se deje nada; el archivo original no se guarda.
           </p>
         )}
       </section>
+
+      <TravelLibrary />
 
       <footer className="container-editorial pb-10 pt-14">
         <div className="rule mb-6" />

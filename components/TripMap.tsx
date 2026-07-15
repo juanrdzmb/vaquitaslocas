@@ -15,6 +15,7 @@ import {
 } from "@/lib/schema";
 import type { NearbyPlace } from "@/lib/maps";
 import { googleMapsUrl } from "@/lib/utils";
+import { TRIP_CHAPTER_EVENT } from "@/lib/trip-chapters";
 
 type Props = {
   center: Coordinates | null;
@@ -75,6 +76,18 @@ function FitBounds({
     const bounds = L.latLngBounds(points.map((p) => [p.lat, p.lng]));
     map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
   }, [points, map]);
+  return null;
+}
+
+function RefreshMapWhenChapterOpens() {
+  const map = useMap();
+  useEffect(() => {
+    const refresh = () => {
+      requestAnimationFrame(() => map.invalidateSize({ pan: false }));
+    };
+    window.addEventListener(TRIP_CHAPTER_EVENT, refresh);
+    return () => window.removeEventListener(TRIP_CHAPTER_EVENT, refresh);
+  }, [map]);
   return null;
 }
 
@@ -157,6 +170,7 @@ export default function TripMap({
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
       />
       <FitBounds points={visibleBoundsPoints} />
+      <RefreshMapWhenChapterOpens />
 
       {itinerary.map((day) =>
         day.stops.map((stop, i) =>

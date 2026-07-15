@@ -1,19 +1,10 @@
 import type { ItineraryDay, Trip } from "@/lib/schema";
+import { explicitDateKey } from "@/lib/utils";
 
 type Moment = {
   title: string;
   detail: string;
 };
-
-function dateKey(value: string | null | undefined): string | null {
-  if (!value) return null;
-  const isoDate = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (isoDate) return `${isoDate[1]}-${isoDate[2]}-${isoDate[3]}`;
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toISOString().slice(0, 10);
-}
 
 function dayDistance(from: string, to: string): number {
   const start = Date.parse(`${from}T12:00:00Z`);
@@ -22,8 +13,8 @@ function dayDistance(from: string, to: string): number {
 }
 
 function dayLabel(day: ItineraryDay | undefined): string {
-  const key = dateKey(day?.date);
-  if (!key) return "Fecha por confirmar";
+  const key = explicitDateKey(day?.date);
+  if (!key) return day?.date || "Fecha por confirmar";
   const date = new Date(`${key}T12:00:00Z`);
   return new Intl.DateTimeFormat("es-ES", {
     weekday: "long",
@@ -50,14 +41,14 @@ function stopDetail(day: ItineraryDay | undefined): Moment {
 
 export default function TripNowCard({ trip, now }: { trip: Trip; now: number }) {
   const today = new Date(now).toISOString().slice(0, 10);
-  const datedDays = trip.itinerary.filter((day) => dateKey(day.date));
+  const datedDays = trip.itinerary.filter((day) => explicitDateKey(day.date));
   const firstDay = trip.itinerary[0];
   const lastDay = trip.itinerary[trip.itinerary.length - 1];
-  const start = dateKey(trip.startDate) ?? dateKey(datedDays[0]?.date);
+  const start = explicitDateKey(trip.startDate) ?? explicitDateKey(datedDays[0]?.date);
   const end =
-    dateKey(trip.endDate) ?? dateKey(datedDays[datedDays.length - 1]?.date);
+    explicitDateKey(trip.endDate) ?? explicitDateKey(datedDays[datedDays.length - 1]?.date);
   const todayIndex = trip.itinerary.findIndex(
-    (day) => dateKey(day.date) === today
+    (day) => explicitDateKey(day.date) === today
   );
 
   let eyebrow = "Tu viaje, a mano";

@@ -47,12 +47,14 @@ export type ItineraryDay = {
 export type Recommendation = {
   id: string;
   type: "hidden_gem" | "restaurant" | "library" | "bookstore" | "activity" | "viewpoint" | "culture" | "other";
+  origin?: "source" | "suggested";
   title: string;
   description: string;
   reason: string;
   location?: string;
   coordinates?: Coordinates | null;
   tags?: string[];
+  verificationStatus?: "verified" | "concept" | "unverified";
 };
 
 export type ChatMessage = {
@@ -128,6 +130,9 @@ export type Trip = {
   visualTheme?: TripVisualTheme;
   sourceFileName?: string;
   sourceSheetCount?: number;
+  sourceWorkbook?: TripSourceWorkbook;
+  sourceHash?: string;
+  generationVersion?: string;
   createdAt: number;
 };
 
@@ -135,6 +140,14 @@ export type WorkbookCellInput = {
   column: number;
   value: string;
   url?: string;
+};
+
+export type WorkbookImageInput = {
+  id: string;
+  row: number;
+  column: number;
+  dataUrl: string;
+  alt?: string;
 };
 
 export type WorkbookRowInput = {
@@ -145,11 +158,20 @@ export type WorkbookRowInput = {
 export type WorkbookSheetInput = {
   name: string;
   rows: WorkbookRowInput[];
+  images?: WorkbookImageInput[];
 };
 
 export type ExtractedWorkbook = {
   fileName: string;
   fileSize: number;
+  sheets: WorkbookSheetInput[];
+};
+
+export type TripSourceWorkbook = {
+  fileName: string;
+  sheetCount: number;
+  cellCount: number;
+  imageCount: number;
   sheets: WorkbookSheetInput[];
 };
 

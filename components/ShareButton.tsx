@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { CheckIcon, ShareNetworkIcon } from "@phosphor-icons/react";
+import { canonicalTripUrl } from "@/lib/app-url";
 
 type ShareStatus = "idle" | "sharing" | "shared" | "copied" | "error";
 
@@ -46,7 +48,15 @@ async function copyUrl(url: string): Promise<boolean> {
   }
 }
 
-export default function ShareButton({ tripId }: { tripId: string }) {
+export default function ShareButton({
+  tripId,
+  title,
+  destination,
+}: {
+  tripId: string;
+  title?: string;
+  destination?: string;
+}) {
   const [status, setStatus] = useState<ShareStatus>("idle");
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -65,13 +75,12 @@ export default function ShareButton({ tripId }: { tripId: string }) {
 
   async function share() {
     if (status === "sharing") return;
-    const url = new URL(
-      `/trip/${encodeURIComponent(tripId)}`,
-      window.location.origin
-    ).toString();
+    const url = canonicalTripUrl(tripId, window.location.origin);
     const shareData: ShareData = {
-      title: document.title || "Mi viaje",
-      text: "Mira este viaje",
+      title: title ? `${title} · VaquitasLocas` : document.title || "Mi viaje",
+      text: destination
+        ? `Amanda, te dejo aquí el viaje a ${destination}. Hasta compartirlo funciona; mi heroísmo no conoce límites.`
+        : "Amanda, te dejo aquí el viaje. Hasta compartirlo funciona; mi heroísmo no conoce límites.",
       url,
     };
 
@@ -125,32 +134,9 @@ export default function ShareButton({ tripId }: { tripId: string }) {
       className="btn-ghost min-h-[44px] px-4 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)] disabled:cursor-wait disabled:opacity-60"
     >
       {completed ? (
-        <svg
-          aria-hidden="true"
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-        >
-          <path d="M20 6L9 17l-5-5" />
-        </svg>
+        <CheckIcon size={17} weight="bold" aria-hidden />
       ) : (
-        <svg
-          aria-hidden="true"
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-        >
-          <circle cx="18" cy="5" r="3" />
-          <circle cx="6" cy="12" r="3" />
-          <circle cx="18" cy="19" r="3" />
-          <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
-        </svg>
+        <ShareNetworkIcon size={17} weight="duotone" aria-hidden />
       )}
       <span aria-live="polite">{label}</span>
     </button>

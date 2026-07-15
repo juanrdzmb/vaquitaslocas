@@ -35,6 +35,35 @@ export type TripTheme = {
 
 const PALETTES: ThemePalette[] = [
   {
+    id: "danube",
+    label: "Danubio",
+    motif: "arches",
+    light: {
+      bg: "#faf6fb",
+      bgAlt: "#f0e7f0",
+      fg: "#2b1725",
+      muted: "#735f6d",
+      line: "#decbd8",
+      accent: "#6f365f",
+      accentInk: "#ffffff",
+      glow: "rgba(77, 126, 160, 0.19)",
+    },
+    dark: {
+      bg: "#1a1018",
+      bgAlt: "#281a25",
+      fg: "#faeef7",
+      muted: "#c8adbe",
+      line: "#4b3042",
+      accent: "#e5a5d1",
+      accentInk: "#321126",
+      glow: "rgba(99, 167, 196, 0.15)",
+    },
+    heroLight:
+      "linear-gradient(132deg, rgba(111,54,95,.18), transparent 48%), radial-gradient(circle at 83% 12%, rgba(58,130,166,.24), transparent 33%), radial-gradient(circle at 67% 82%, rgba(191,145,49,.18), transparent 31%)",
+    heroDark:
+      "linear-gradient(132deg, rgba(229,165,209,.17), transparent 48%), radial-gradient(circle at 83% 12%, rgba(99,167,196,.16), transparent 33%), radial-gradient(circle at 67% 82%, rgba(216,176,85,.10), transparent 31%)",
+  },
+  {
     id: "atlantic",
     label: "Atlántico",
     motif: "waves",
@@ -269,6 +298,7 @@ const PALETTES: ThemePalette[] = [
 ];
 
 const DESTINATION_HINTS: Array<[RegExp, string]> = [
+  [/(budapest|hungr[ií]a|hungary).*(praga|prague)|(?:praga|prague).*(budapest|hungr[ií]a|hungary)/i, "danube"],
   [/(playa|costa|coast|isla|island|miami|hawai|bali|maldiv|ibiza|mallorca|cartagena|san diego)/i, "atlantic"],
   [/(mont|alpes|alps|suiza|swiss|colorado|patagonia|andes|dolomit|nepal|canad)/i, "alpine"],
   [/(desert|desierto|arizona|utah|nevada|marrakech|sahara|jordania|jordan)/i, "canyon"],
@@ -311,6 +341,9 @@ function requestedPalette(visualTheme: unknown): string | null {
 }
 
 function choosePalette(destination: string, visualTheme?: unknown): ThemePalette {
+  const hintedId = DESTINATION_HINTS.find(([pattern]) => pattern.test(destination))?.[1];
+  if (hintedId) return PALETTES.find((palette) => palette.id === hintedId)!;
+
   const requested = requestedPalette(visualTheme);
   if (requested) {
     const explicit = PALETTES.find(
@@ -321,9 +354,6 @@ function choosePalette(destination: string, visualTheme?: unknown): ThemePalette
     );
     if (explicit) return explicit;
   }
-
-  const hintedId = DESTINATION_HINTS.find(([pattern]) => pattern.test(destination))?.[1];
-  if (hintedId) return PALETTES.find((palette) => palette.id === hintedId)!;
 
   return PALETTES[hashDestination(destination || "viaje") % PALETTES.length];
 }

@@ -109,7 +109,7 @@ export default function Hotels({ stays, destination }: { stays: HotelStay[]; des
                     {stay.pricePerNight != null && <p className="mt-1 font-mono text-[10px] text-[var(--fg-muted)]">{formatCurrency(stay.pricePerNight, stay.currency)} / noche</p>}
                   </div>
                   <div className="flex flex-wrap justify-end gap-2">
-                    <a href={placeUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-[var(--fg)] px-4 text-xs font-medium text-[var(--bg)] transition hover:bg-[var(--accent)] hover:text-white">
+                    <a href={placeUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-[var(--fg)] px-4 text-xs font-medium text-[var(--bg)] transition hover:bg-[var(--accent)] hover:text-[var(--accent-ink)]">
                       <MapPinIcon size={15} weight="duotone" aria-hidden /> Ver hotel
                     </a>
                     <a href={directions} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-[var(--line)] bg-[var(--bg)] px-4 text-xs font-medium transition hover:border-[var(--accent)] hover:text-[var(--accent)]">

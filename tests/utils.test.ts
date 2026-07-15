@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatDate,
+  explicitDateKey,
   googleDirectionsUrl,
   googleMapsUrl,
   googleMultiStopDirectionsUrl,
@@ -9,6 +10,11 @@ import {
 import { deriveTripTheme } from "../lib/trip-theme";
 
 describe("travel utilities", () => {
+  it("never invents 2001 for a source date without year", () => {
+    expect(formatDate("14 septiembre")).toBe("14 septiembre");
+    expect(explicitDateKey("14 septiembre")).toBeNull();
+    expect(explicitDateKey("2027-09-14")).toBe("2027-09-14");
+  });
   it("formats date-only values without shifting to the previous day", () => {
     expect(formatDate("2027-04-15")).toMatch(/15/);
   });
@@ -21,6 +27,16 @@ describe("travel utilities", () => {
     expect(googleDirectionsUrl({ destination: "The Morgan Library", travelMode: "walking" })).toContain(
       "travelmode=walking"
     );
+  });
+
+  it("can pin verified coordinates instead of repeating an ambiguous business name", () => {
+    const place = new URL(googleMapsUrl({
+      query: "Central Café",
+      lat: 47.4979,
+      lng: 19.0402,
+      preferCoordinates: true,
+    }));
+    expect(place.searchParams.get("query")).toBe("47.4979,19.0402");
   });
 
   it("builds an ordered multi-stop route without using the current device as origin", () => {

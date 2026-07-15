@@ -24,7 +24,15 @@ export async function createTrip(
   const trip: Trip = { ...data, id, createdAt };
 
   if (databaseUrl) {
-    await createTripPostgres(trip);
+    const inserted = await createTripPostgres(trip);
+    if (!inserted && trip.sourceHash && trip.generationVersion) {
+      const existing = await findTripByFingerprint(
+        trip.sourceHash,
+        trip.generationVersion
+      );
+      if (existing) return existing;
+      throw new Error("El viaje ya existía, pero no pude recuperar su copia guardada.");
+    }
   } else if (allowLocalFallback) {
     await createTripLocal(trip);
   } else {
@@ -43,6 +51,29 @@ export async function getTrip(id: string): Promise<Trip | null> {
   if (allowLocalFallback) {
     return getTripLocal(id);
   }
+  throw missingDatabaseError();
+}
+
+export async function findTripByFingerprint(
+  sourceHash: string,
+  generationVersion: string
+): Promise<Trip | null> {
+  if (!/^[a-f0-9]{64}$/.test(sourceHash) || !generationVersion.trim()) return null;
+
+  if (databaseUrl) {
+    await ensureSchema();
+    const sql = getSqlClient();
+    const rows = await sql`
+      SELECT * FROM trips
+      WHERE source_hash = ${sourceHash}
+        AND generation_version = ${generationVersion}
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+    const row = rows[0] as Record<string, unknown> | undefined;
+    return row ? mapTripRow(row) : null;
+  }
+  if (allowLocalFallback) return findTripLocalByFingerprint(sourceHash, generationVersion);
   throw missingDatabaseError();
 }
 
@@ -89,6 +120,9 @@ async function initializeSchema(sql: SqlClient): Promise<void> {
       visual_theme JSONB,
       source_file_name TEXT,
       source_sheet_count INTEGER,
+      source_workbook JSONB,
+      source_hash TEXT,
+      generation_version TEXT,
       created_at BIGINT NOT NULL
     )
   `;
@@ -97,19 +131,33 @@ async function initializeSchema(sql: SqlClient): Promise<void> {
   await sql`ALTER TABLE trips ADD COLUMN IF NOT EXISTS visual_theme JSONB`;
   await sql`ALTER TABLE trips ADD COLUMN IF NOT EXISTS source_file_name TEXT`;
   await sql`ALTER TABLE trips ADD COLUMN IF NOT EXISTS source_sheet_count INTEGER`;
+  await sql`ALTER TABLE trips ADD COLUMN IF NOT EXISTS source_workbook JSONB`;
+  await sql`ALTER TABLE trips ADD COLUMN IF NOT EXISTS source_hash TEXT`;
+  await sql`ALTER TABLE trips ADD COLUMN IF NOT EXISTS generation_version TEXT`;
   await sql`CREATE INDEX IF NOT EXISTS trips_created_at_idx ON trips (created_at DESC)`;
+  await sql`
+    CREATE INDEX IF NOT EXISTS trips_generation_cache_idx
+    ON trips (source_hash, generation_version, created_at DESC)
+    WHERE source_hash IS NOT NULL AND generation_version IS NOT NULL
+  `;
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS trips_generation_fingerprint_unique_idx
+    ON trips (source_hash, generation_version)
+    WHERE source_hash IS NOT NULL AND generation_version IS NOT NULL
+  `;
 }
 
-async function createTripPostgres(trip: Trip): Promise<void> {
+async function createTripPostgres(trip: Trip): Promise<boolean> {
   await ensureSchema();
   const sql = getSqlClient();
 
-  await sql`
+  const rows = await sql`
     INSERT INTO trips (
       id, title, subtitle, destination, start_date, end_date,
       travelers, currency, overview, highlights, tips,
       itinerary, budget, recommendations, transport, hotels, map_center,
-      visual_theme, source_file_name, source_sheet_count, created_at
+      visual_theme, source_file_name, source_sheet_count, source_workbook,
+      source_hash, generation_version, created_at
     ) VALUES (
       ${trip.id}, ${trip.title}, ${trip.subtitle}, ${trip.destination},
       ${trip.startDate}, ${trip.endDate},
@@ -125,9 +173,17 @@ async function createTripPostgres(trip: Trip): Promise<void> {
       ${trip.visualTheme ? JSON.stringify(trip.visualTheme) : null}::jsonb,
       ${trip.sourceFileName ?? null},
       ${normalizeSheetCount(trip.sourceSheetCount)},
+      ${trip.sourceWorkbook ? JSON.stringify(trip.sourceWorkbook) : null}::jsonb,
+      ${trip.sourceHash ?? null},
+      ${trip.generationVersion ?? null},
       ${trip.createdAt}
     )
+    ON CONFLICT (source_hash, generation_version)
+      WHERE source_hash IS NOT NULL AND generation_version IS NOT NULL
+    DO NOTHING
+    RETURNING id
   `;
+  return Boolean(rows[0]);
 }
 
 async function getTripPostgres(id: string): Promise<Trip | null> {
@@ -142,6 +198,9 @@ async function getTripPostgres(id: string): Promise<Trip | null> {
 function mapTripRow(row: Record<string, unknown>): Trip {
   const visualTheme = parseJsonObject<TripVisualTheme>(row.visual_theme);
   const sourceFileName = optionalString(row.source_file_name);
+  const sourceWorkbook = parseJsonObject<Trip["sourceWorkbook"]>(row.source_workbook);
+  const sourceHash = optionalString(row.source_hash);
+  const generationVersion = optionalString(row.generation_version);
 
   return {
     id: String(row.id),
@@ -163,6 +222,9 @@ function mapTripRow(row: Record<string, unknown>): Trip {
     mapCenter: parseJsonObject<Trip["mapCenter"]>(row.map_center) ?? null,
     ...(visualTheme ? { visualTheme } : {}),
     ...(sourceFileName ? { sourceFileName } : {}),
+    ...(sourceWorkbook ? { sourceWorkbook } : {}),
+    ...(sourceHash ? { sourceHash } : {}),
+    ...(generationVersion ? { generationVersion } : {}),
     // Las filas creadas antes de esta columna se leen como un libro sin hojas conocidas.
     sourceSheetCount: normalizeSheetCount(row.source_sheet_count) ?? 0,
     createdAt: Number(row.created_at ?? Date.now()),
@@ -195,6 +257,31 @@ async function getTripLocal(id: string): Promise<Trip | null> {
     throw new Error(`No se pudo leer el viaje local "${id}".`, {
       cause: error,
     });
+  }
+}
+
+async function findTripLocalByFingerprint(
+  sourceHash: string,
+  generationVersion: string
+): Promise<Trip | null> {
+  try {
+    const files = (await fs.readdir(LOCAL_DB_DIR)).filter((file) => file.endsWith(".json"));
+    let latest: Trip | null = null;
+    for (const file of files) {
+      const raw = await fs.readFile(path.join(LOCAL_DB_DIR, file), "utf-8");
+      const trip = JSON.parse(raw) as Trip;
+      if (
+        trip.sourceHash === sourceHash &&
+        trip.generationVersion === generationVersion &&
+        (!latest || trip.createdAt > latest.createdAt)
+      ) {
+        latest = trip;
+      }
+    }
+    return latest;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
   }
 }
 

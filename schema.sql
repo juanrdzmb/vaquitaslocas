@@ -23,6 +23,9 @@ CREATE TABLE IF NOT EXISTS trips (
   visual_theme       JSONB,
   source_file_name   TEXT,
   source_sheet_count INTEGER,
+  source_workbook    JSONB,
+  source_hash        TEXT,
+  generation_version TEXT,
   created_at         BIGINT NOT NULL
 );
 
@@ -30,5 +33,15 @@ CREATE TABLE IF NOT EXISTS trips (
 ALTER TABLE trips ADD COLUMN IF NOT EXISTS visual_theme JSONB;
 ALTER TABLE trips ADD COLUMN IF NOT EXISTS source_file_name TEXT;
 ALTER TABLE trips ADD COLUMN IF NOT EXISTS source_sheet_count INTEGER;
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS source_workbook JSONB;
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS source_hash TEXT;
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS generation_version TEXT;
 
 CREATE INDEX IF NOT EXISTS trips_created_at_idx ON trips (created_at DESC);
+CREATE INDEX IF NOT EXISTS trips_generation_cache_idx
+  ON trips (source_hash, generation_version, created_at DESC)
+  WHERE source_hash IS NOT NULL AND generation_version IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS trips_generation_fingerprint_unique_idx
+  ON trips (source_hash, generation_version)
+  WHERE source_hash IS NOT NULL AND generation_version IS NOT NULL;

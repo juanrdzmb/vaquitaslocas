@@ -53,7 +53,11 @@ export default function TripAppShell({
 
           <div className="trip-topbar__actions">
             <div className="trip-header-share">
-              <ShareButton tripId={trip.id} />
+              <ShareButton
+                tripId={trip.id}
+                title={trip.title}
+                destination={trip.destination}
+              />
             </div>
             <ThemeToggle />
           </div>
@@ -66,6 +70,7 @@ export default function TripAppShell({
 
       <MobileTripDock
         hasItinerary={trip.itinerary.length > 0}
+        hasSource={Boolean(trip.sourceWorkbook?.sheets.length)}
         hasMap={hasMap}
         hasRecommendations={trip.recommendations.length > 0}
       />

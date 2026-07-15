@@ -19,6 +19,7 @@ type Props = {
   recommendations: Recommendation[];
   tripId: string;
   destination: string;
+  sectionId?: string;
 };
 
 type NearbySource = "trip" | "user";
@@ -141,6 +142,7 @@ export default function MapSection({
   recommendations,
   tripId,
   destination,
+  sectionId = "mapa",
 }: Props) {
   const [showNearby, setShowNearby] = useState(false);
   const [nearby, setNearby] = useState<NearbyPlace[]>([]);
@@ -320,7 +322,7 @@ export default function MapSection({
   }
 
   return (
-    <section id="mapa" className="container-editorial py-16 md:py-24">
+    <section id={sectionId} className="container-editorial py-16 md:py-24">
       <div className="flex flex-wrap items-baseline justify-between gap-4 pb-6">
         <h2 className="display-md tracking-tightest">El viaje en el mapa</h2>
         <span className="section-number">03</span>

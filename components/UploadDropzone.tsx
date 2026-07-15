@@ -115,7 +115,7 @@ export default function UploadDropzone({ onFile, onError, disabled }: Props) {
           <span className="block italic text-[var(--accent)]">El caos me lo quedo yo.</span>
         </p>
         <p id="upload-help" className="mt-4 max-w-md text-sm leading-relaxed text-[var(--fg-muted)] sm:text-base">
-          También puedes tocar para elegirlo. Funciona con varias hojas y con archivos llenos de imágenes: solo viajan las celdas útiles.
+          También puedes tocar para elegirlo. Lee todas las hojas y conserva tanto las celdas como las imágenes pegadas que forman parte del plan.
         </p>
       </div>
 

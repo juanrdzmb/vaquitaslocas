@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Fraunces, Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "next-themes";
+import AppMotionProvider from "@/components/AppMotionProvider";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -74,11 +75,11 @@ export default function RootLayout({
       <body className="font-sans antialiased">
         <ThemeProvider
           attribute="class"
-          defaultTheme="light"
+          defaultTheme="system"
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <AppMotionProvider>{children}</AppMotionProvider>
         </ThemeProvider>
       </body>
     </html>

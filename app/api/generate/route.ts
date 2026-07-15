@@ -1,13 +1,18 @@
 import { NextResponse } from "next/server";
 import { structureTripWithAI } from "@/lib/deepseek";
-import { createTrip } from "@/lib/db";
+import { createTrip, findTripByFingerprint } from "@/lib/db";
 import {
+  buildTripSourceWorkbook,
   normalizeWorkbookPayload,
   serializeWorkbookForPrompt,
   WorkbookValidationError,
   workbookCellCount,
 } from "@/lib/workbook";
 import { clientAddress, takeRateLimit } from "@/lib/rate-limit";
+import {
+  GENERATION_VERSION,
+  generationFingerprint,
+} from "@/lib/generation-fingerprint";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -15,7 +20,7 @@ export const dynamic = "force-dynamic";
 
 type GenerationEvent =
   | { type: "progress"; progress: number; label: string }
-  | { type: "complete"; progress: 1; label: string; id: string; imported: { sheets: number; cells: number } }
+  | { type: "complete"; progress: 1; label: string; id: string; cached?: boolean; imported: { sheets: number; cells: number } }
   | { type: "error"; error: string };
 
 function publicGenerationError(err: unknown): string {
@@ -57,7 +62,7 @@ export async function POST(request: Request) {
       );
     }
     const declaredLength = Number(request.headers.get("content-length") ?? 0);
-    if (Number.isFinite(declaredLength) && declaredLength > 2 * 1024 * 1024) {
+    if (Number.isFinite(declaredLength) && declaredLength > 3.5 * 1024 * 1024) {
       return NextResponse.json(
         { error: "El libro contiene demasiado texto para procesarlo de una vez." },
         { status: 413 }
@@ -73,6 +78,8 @@ export async function POST(request: Request) {
   }
 
   const workbookText = serializeWorkbookForPrompt(workbook);
+  const sourceWorkbook = buildTripSourceWorkbook(workbook);
+  const sourceHash = generationFingerprint(workbook);
   const imported = {
     sheets: workbook.sheets.length,
     cells: workbookCellCount(workbook),
@@ -98,6 +105,27 @@ export async function POST(request: Request) {
       });
 
       try {
+        send({
+          type: "progress",
+          progress: 0.865,
+          label: "Comprobando si ya hice este trabajo. Incluso yo intento no cobrar dos cafés por lo mismo…",
+        });
+        const cachedTrip = await findTripByFingerprint(
+          sourceHash,
+          GENERATION_VERSION
+        );
+        if (cachedTrip) {
+          send({
+            type: "complete",
+            progress: 1,
+            label: "Ya estaba listo. Cero tokens repetidos y mi sacrificio ha sido debidamente archivado.",
+            id: cachedTrip.id,
+            cached: true,
+            imported,
+          });
+          return;
+        }
+
         const tripData = await structureTripWithAI(
           workbookText,
           { fileName: workbook.fileName, sheetCount: imported.sheets },
@@ -105,7 +133,12 @@ export async function POST(request: Request) {
           generationController.signal
         );
         send({ type: "progress", progress: 0.99, label: "Guardando el viaje. La base de datos está haciendo su única repetición pesada…" });
-        const trip = await createTrip(tripData);
+        const trip = await createTrip({
+          ...tripData,
+          sourceWorkbook,
+          sourceHash,
+          generationVersion: GENERATION_VERSION,
+        });
         send({
           type: "complete",
           progress: 1,

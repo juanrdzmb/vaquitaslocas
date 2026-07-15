@@ -34,6 +34,15 @@ describe("chat scrolling", () => {
     expect(scrollClass).toContain("overscroll-contain");
     expect(source).toContain('onScroll={(event) =>');
     expect(source).toContain("stickToBottomRef.current = isChatNearBottom(event.currentTarget)");
+    expect(source).toContain("userScrollingRef.current");
+    expect(source).toContain("cancelScheduledScroll()");
+  });
+
+  it("announces stream state once instead of treating every token as a live update", () => {
+    expect(source).not.toContain('className={CHAT_SCROLL_CONTAINER_CLASS}\n                  aria-live="polite"');
+    expect(source).toContain('role="status" aria-live="polite" aria-atomic="true"');
+    expect(source).not.toContain('setLiveStatus("Respuesta de Juan lista.")');
+    expect(source).toContain("setLiveStatus(completionStatus)");
   });
 
   it("does not drag the reader back down after they scroll away", () => {

@@ -38,16 +38,16 @@ function totalsByCurrency(segments: TransportSegment[]): Array<[string, number]>
 
 export default function FlightsTrains({
   segments,
-  destination,
+  sectionId = "reservas",
 }: {
   segments: TransportSegment[];
-  destination: string;
+  sectionId?: string;
 }) {
   if (!segments.length) return null;
   const totals = totalsByCurrency(segments);
 
   return (
-    <section id="reservas" className="container-editorial scroll-mt-24 py-14 md:py-20">
+    <section id={sectionId} className="container-editorial scroll-mt-24 py-14 md:py-20">
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="eyebrow mb-3">Movimientos importantes</p>
@@ -65,7 +65,10 @@ export default function FlightsTrains({
               ? webSearchUrl(`${segment.provider || segment.route} check-in online oficial`)
               : null);
           const mapUrl = googleMapsUrl({
-            query: `${segment.departure} ${segment.type === "flight" ? "airport" : "station"}, ${destination}`,
+            // La salida ya contiene su ciudad o estación. Añadir el destino
+            // completo del viaje convertía, por ejemplo, Madrid airport en una
+            // búsqueda absurda de "Madrid airport, Budapest, Praga".
+            query: `${segment.departure} ${segment.type === "flight" ? "airport" : "station"}`,
             lat: segment.coordinates?.lat,
             lng: segment.coordinates?.lng,
           });

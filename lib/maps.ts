@@ -7,15 +7,50 @@ type NominatimResult = {
   lat: string;
   lon: string;
   display_name: string;
+  name?: string;
   type?: string;
   importance?: number;
 };
 
-export async function geocode(query: string): Promise<Coordinates | null> {
+function normalizedTokens(value: string): string[] {
+  const ignored = new Set([
+    "the", "and", "del", "las", "los", "una", "uno", "cafe", "café",
+    "restaurant", "restaurante", "hotel",
+  ]);
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\b(?:praha|prague)\b/g, "praga")
+    .replace(/\b(?:czechia|czech|cesko|chequia)\b/g, "checa")
+    .replace(/\bmagyarorszag\b/g, "hungria")
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length >= 3 && !ignored.has(token));
+}
+
+export function geocodeResultMatches(
+  expectedName: string,
+  expectedLocation: string,
+  displayName: string
+): boolean {
+  const haystack = new Set(normalizedTokens(displayName));
+  const nameTokens = [...new Set(normalizedTokens(expectedName))];
+  const locationTokens = [...new Set(normalizedTokens(expectedLocation))];
+  const nameMatches = nameTokens.filter((token) => haystack.has(token)).length;
+  const locationMatches = locationTokens.filter((token) => haystack.has(token)).length;
+  const requiredNameMatches = nameTokens.length <= 1 ? 1 : 2;
+  return (
+    nameTokens.length > 0 &&
+    nameMatches >= requiredNameMatches &&
+    (locationTokens.length === 0 || locationMatches >= 1)
+  );
+}
+
+async function geocodeResults(query: string, limit = 1): Promise<NominatimResult[]> {
   const url = new URL(NOMINATIM_URL);
   url.searchParams.set("q", query);
   url.searchParams.set("format", "json");
-  url.searchParams.set("limit", "1");
+  url.searchParams.set("limit", String(Math.max(1, Math.min(limit, 5))));
   url.searchParams.set("addressdetails", "0");
 
   const controller = new AbortController();
@@ -31,18 +66,42 @@ export async function geocode(query: string): Promise<Coordinates | null> {
       signal: controller.signal,
     });
   } catch {
-    return null;
+    return [];
   } finally {
     clearTimeout(timeout);
   }
 
-  if (!res.ok) return null;
-  const data = (await res.json()) as NominatimResult[];
-  if (!data.length) return null;
+  if (!res.ok) return [];
+  return (await res.json()) as NominatimResult[];
+}
+
+function coordinatesFromResult(result: NominatimResult | undefined): Coordinates | null {
+  if (!result) return null;
+  const lat = Number(result.lat);
+  const lng = Number(result.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+    return null;
+  }
   return {
-    lat: parseFloat(data[0].lat),
-    lng: parseFloat(data[0].lon),
+    lat,
+    lng,
   };
+}
+
+export async function geocode(query: string): Promise<Coordinates | null> {
+  return coordinatesFromResult((await geocodeResults(query, 1))[0]);
+}
+
+/** Solo certifica un negocio si Nominatim devuelve nombre y localidad compatibles. */
+export async function geocodeVerifiedPlace(
+  name: string,
+  location: string
+): Promise<Coordinates | null> {
+  const candidates = await geocodeResults(`${name}, ${location}`, 5);
+  const match = candidates
+    .filter((candidate) => geocodeResultMatches(name, location, candidate.display_name || candidate.name || ""))
+    .sort((a, b) => (b.importance ?? 0) - (a.importance ?? 0))[0];
+  return coordinatesFromResult(match);
 }
 
 export type NearbyPlace = {
@@ -115,6 +174,7 @@ export async function findNearbyPlaces(
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: `data=${encodeURIComponent(query)}`,
+    signal: AbortSignal.timeout(20_000),
   });
 
   if (!res.ok) return [];

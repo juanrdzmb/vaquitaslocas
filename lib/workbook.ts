@@ -1,6 +1,8 @@
 import type {
   ExtractedWorkbook,
+  TripSourceWorkbook,
   WorkbookCellInput,
+  WorkbookImageInput,
   WorkbookRowInput,
   WorkbookSheetInput,
 } from "./schema";
@@ -13,6 +15,9 @@ export const WORKBOOK_LIMITS = {
   maxCells: 50_000,
   maxCellChars: 1_200,
   maxTextChars: 900_000,
+  maxImages: 16,
+  maxImageBytes: 650 * 1024,
+  maxImageBytesTotal: 1_400 * 1024,
 } as const;
 
 export class WorkbookValidationError extends Error {
@@ -47,6 +52,18 @@ function safeHttpUrl(value: unknown): string | undefined {
   }
 }
 
+function safeImageDataUrl(value: unknown): { dataUrl: string; bytes: number } | null {
+  if (typeof value !== "string") return null;
+  const match = /^data:image\/(png|jpeg|webp|gif);base64,([A-Za-z0-9+/]+={0,2})$/i.exec(
+    value.trim()
+  );
+  if (!match) return null;
+  const padding = match[2].endsWith("==") ? 2 : match[2].endsWith("=") ? 1 : 0;
+  const bytes = Math.floor((match[2].length * 3) / 4) - padding;
+  if (bytes <= 0 || bytes > WORKBOOK_LIMITS.maxImageBytes) return null;
+  return { dataUrl: value.trim(), bytes };
+}
+
 export function normalizeWorkbookPayload(value: unknown): ExtractedWorkbook {
   if (!isRecord(value)) {
     throw new WorkbookValidationError("No se recibió un libro válido.");
@@ -74,6 +91,8 @@ export function normalizeWorkbookPayload(value: unknown): ExtractedWorkbook {
 
   let totalCells = 0;
   let totalTextChars = 0;
+  let totalImages = 0;
+  let totalImageBytes = 0;
   const sheets: WorkbookSheetInput[] = [];
 
   for (const rawSheet of value.sheets) {
@@ -125,9 +144,34 @@ export function normalizeWorkbookPayload(value: unknown): ExtractedWorkbook {
         rows.push({ row, cells });
       }
     }
-    if (rows.length) {
+    const images: WorkbookImageInput[] = [];
+    if (Array.isArray(rawSheet.images)) {
+      for (const rawImage of rawSheet.images) {
+        if (!isRecord(rawImage) || totalImages >= WORKBOOK_LIMITS.maxImages) break;
+        const safeImage = safeImageDataUrl(rawImage.dataUrl);
+        if (!safeImage) continue;
+        if (totalImageBytes + safeImage.bytes > WORKBOOK_LIMITS.maxImageBytesTotal) break;
+        const row = Math.trunc(Number(rawImage.row));
+        const column = Math.trunc(Number(rawImage.column));
+        if (!Number.isFinite(row) || row < 1 || row > 1_000_000) continue;
+        if (!Number.isFinite(column) || column < 0 || column > 16_383) continue;
+        totalImages += 1;
+        totalImageBytes += safeImage.bytes;
+        images.push({
+          id: cleanText(rawImage.id, 120).trim() || `${name}-image-${images.length + 1}`,
+          row,
+          column,
+          dataUrl: safeImage.dataUrl,
+          ...(cleanText(rawImage.alt, 240).trim()
+            ? { alt: cleanText(rawImage.alt, 240).trim() }
+            : {}),
+        });
+      }
+    }
+    if (rows.length || images.length) {
       rows.sort((a, b) => a.row - b.row);
-      sheets.push({ name, rows });
+      images.sort((a, b) => a.row - b.row || a.column - b.column);
+      sheets.push({ name, rows, ...(images.length ? { images } : {}) });
     }
   }
 
@@ -144,6 +188,29 @@ export function workbookCellCount(workbook: ExtractedWorkbook): number {
       sum + sheet.rows.reduce((rowSum, row) => rowSum + row.cells.length, 0),
     0
   );
+}
+
+export function workbookImageCount(workbook: ExtractedWorkbook): number {
+  return workbook.sheets.reduce(
+    (sum, sheet) => sum + (sheet.images?.length ?? 0),
+    0
+  );
+}
+
+/**
+ * Snapshot canónico que se guarda junto al viaje. No depende de DeepSeek:
+ * si la capa de IA resume de más, cada celda y cada imagen siguen disponibles.
+ */
+export function buildTripSourceWorkbook(
+  workbook: ExtractedWorkbook
+): TripSourceWorkbook {
+  return {
+    fileName: workbook.fileName,
+    sheetCount: workbook.sheets.length,
+    cellCount: workbookCellCount(workbook),
+    imageCount: workbookImageCount(workbook),
+    sheets: workbook.sheets,
+  };
 }
 
 export function hasExplicitTravelYear(workbookText: string): boolean {

@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ChatMessage, Trip } from "@/lib/schema";
@@ -50,7 +50,16 @@ export default function ChatPanel({ trip }: { trip: Trip }) {
   const abortRef = useRef<AbortController | null>(null);
   const stickToBottomRef = useRef(true);
   const forceScrollRef = useRef(false);
+  const scrollFrameRef = useRef<number | null>(null);
+  const userScrollingRef = useRef(false);
+  const [liveStatus, setLiveStatus] = useState("");
   const storageKey = `vaquitas-chat:${trip.id}`;
+
+  const cancelScheduledScroll = useCallback(() => {
+    if (scrollFrameRef.current === null) return;
+    cancelAnimationFrame(scrollFrameRef.current);
+    scrollFrameRef.current = null;
+  }, []);
 
   useEffect(() => {
     try {
@@ -76,9 +85,24 @@ export default function ChatPanel({ trip }: { trip: Trip }) {
   }, [storageKey]);
 
   useEffect(() => {
-    if (!hydrated) return;
-    localStorage.setItem(storageKey, JSON.stringify(messages.filter((message) => message.content).slice(-30)));
-  }, [hydrated, messages, storageKey]);
+    if (!hydrated || streaming) return;
+    try {
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify(messages.filter((message) => message.content).slice(-30))
+      );
+    } catch {
+      // Safari privado o una cuota llena no deben romper el chat.
+    }
+  }, [hydrated, messages, storageKey, streaming]);
+
+  useEffect(
+    () => () => {
+      abortRef.current?.abort();
+      cancelScheduledScroll();
+    },
+    [cancelScheduledScroll]
+  );
 
   useEffect(() => {
     const openChat = () => setOpen(true);
@@ -120,25 +144,40 @@ export default function ChatPanel({ trip }: { trip: Trip }) {
     if (!open) return;
     stickToBottomRef.current = true;
     forceScrollRef.current = true;
-    const frame = requestAnimationFrame(() => {
+    cancelScheduledScroll();
+    scrollFrameRef.current = requestAnimationFrame(() => {
       const viewport = scrollRef.current;
+      scrollFrameRef.current = null;
       if (!viewport) return;
       viewport.scrollTop = viewport.scrollHeight;
       forceScrollRef.current = false;
     });
-    return () => cancelAnimationFrame(frame);
-  }, [open]);
+    return cancelScheduledScroll;
+  }, [cancelScheduledScroll, open]);
 
   useEffect(() => {
     const viewport = scrollRef.current;
-    if (!viewport || (!stickToBottomRef.current && !forceScrollRef.current)) return;
-    const frame = requestAnimationFrame(() => {
+    if (
+      !viewport ||
+      userScrollingRef.current ||
+      (!stickToBottomRef.current && !forceScrollRef.current)
+    ) return;
+    cancelScheduledScroll();
+    scrollFrameRef.current = requestAnimationFrame(() => {
+      scrollFrameRef.current = null;
+      // The reader can start a swipe between React scheduling this frame and
+      // the browser painting it. Check the lock again so a streamed token
+      // never drags them back to the bottom mid-read.
+      if (
+        userScrollingRef.current ||
+        (!stickToBottomRef.current && !forceScrollRef.current)
+      ) return;
       viewport.scrollTop = viewport.scrollHeight;
       stickToBottomRef.current = true;
       forceScrollRef.current = false;
     });
-    return () => cancelAnimationFrame(frame);
-  }, [messages, streaming]);
+    return cancelScheduledScroll;
+  }, [cancelScheduledScroll, messages, streaming]);
 
   async function send(value: string) {
     const trimmed = value.trim();
@@ -159,9 +198,11 @@ export default function ChatPanel({ trip }: { trip: Trip }) {
     ]);
     setInput("");
     setStreaming(true);
+    setLiveStatus("Juan está preparando la respuesta.");
 
     const controller = new AbortController();
     abortRef.current = controller;
+    let completionStatus = "Respuesta de Juan lista.";
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
@@ -188,15 +229,18 @@ export default function ChatPanel({ trip }: { trip: Trip }) {
       }
     } catch (reason) {
       if (reason instanceof Error && reason.name === "AbortError") {
+        completionStatus = "Respuesta detenida.";
         setMessages((current) => current.map((message) => (message.id === assistantId && !message.content ? { ...message, content: "Me frenaste a tiempo. Iba por el tercer párrafo, qué peligro." } : message)));
       } else {
         const message = reason instanceof Error ? reason.message : "No pude conectar con Juan de bolsillo.";
+        completionStatus = "No pude completar la respuesta.";
         setError(message);
         setMessages((current) => current.map((item) => (item.id === assistantId ? { ...item, content: `⚠️ ${message}` } : item)));
       }
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
       setStreaming(false);
+      setLiveStatus(completionStatus);
     }
   }
 
@@ -209,7 +253,7 @@ export default function ChatPanel({ trip }: { trip: Trip }) {
         aria-label="Abrir Juan de bolsillo"
         aria-expanded={open}
         aria-controls="juan-chat-dialog"
-        className="fixed right-[max(0.75rem,env(safe-area-inset-right))] z-[9999] flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--fg)] text-[var(--bg)] shadow-2xl transition hover:-translate-y-1 hover:bg-[var(--accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] bottom-[calc(0.6rem+env(safe-area-inset-bottom))] sm:right-[max(1.5rem,env(safe-area-inset-right))] sm:bottom-[calc(1.5rem+env(safe-area-inset-bottom))]"
+        className="fixed right-[max(0.75rem,env(safe-area-inset-right))] z-[9999] flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--fg)] text-[var(--bg)] shadow-2xl transition hover:-translate-y-1 hover:bg-[var(--accent)] hover:text-[var(--accent-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] bottom-[calc(0.6rem+env(safe-area-inset-bottom))] sm:right-[max(1.5rem,env(safe-area-inset-right))] sm:bottom-[calc(1.5rem+env(safe-area-inset-bottom))]"
       >
         <span className="font-display text-xl" aria-hidden>{open ? "×" : "J"}</span>
       </button>
@@ -241,7 +285,7 @@ export default function ChatPanel({ trip }: { trip: Trip }) {
               <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                 <header className="flex shrink-0 items-center justify-between border-b border-[var(--line)] px-4 py-3 sm:px-5">
                   <div className="flex min-w-0 items-center gap-3">
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--accent)] font-display text-xl text-white">J</span>
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--accent)] font-display text-xl text-[var(--accent-ink)]">J</span>
                     <div className="min-w-0">
                       <h2 id="juan-chat-title" className="truncate font-display text-xl leading-none tracking-tightest">Juan de bolsillo</h2>
                       <p className="mt-1 truncate text-[10px] text-[var(--fg-muted)]">Copiloto digital · no Juan escribiendo en vivo</p>
@@ -253,15 +297,34 @@ export default function ChatPanel({ trip }: { trip: Trip }) {
                 <div
                   ref={scrollRef}
                   className={CHAT_SCROLL_CONTAINER_CLASS}
-                  aria-live="polite"
+                  aria-label="Conversación con Juan de bolsillo"
+                  aria-busy={streaming}
                   onScroll={(event) => {
                     stickToBottomRef.current = isChatNearBottom(event.currentTarget);
+                    if (!stickToBottomRef.current) cancelScheduledScroll();
+                  }}
+                  onTouchStart={() => {
+                    userScrollingRef.current = true;
+                    cancelScheduledScroll();
+                  }}
+                  onTouchEnd={(event) => {
+                    userScrollingRef.current = false;
+                    stickToBottomRef.current = isChatNearBottom(event.currentTarget);
+                  }}
+                  onTouchCancel={(event) => {
+                    userScrollingRef.current = false;
+                    stickToBottomRef.current = isChatNearBottom(event.currentTarget);
+                  }}
+                  onWheel={(event) => {
+                    if (event.deltaY >= 0) return;
+                    stickToBottomRef.current = false;
+                    cancelScheduledScroll();
                   }}
                 >
                   {messages.length === 0 && (
                     <div className="space-y-5">
                       <div className="flex gap-3">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)] font-display text-sm text-white">J</span>
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)] font-display text-sm text-[var(--accent-ink)]">J</span>
                         <div className="min-w-0 break-words rounded-2xl rounded-tl-sm bg-[var(--bg-alt)] px-4 py-3 text-sm leading-relaxed [overflow-wrap:anywhere]">
                           Amanda, ya me sé <strong>{trip.title}</strong>. Pregúntame por rutas, comida vegetariana, librerías, reservas o cómo salvar un día cuando el clima decida sabotear el romance.
                         </div>
@@ -276,7 +339,7 @@ export default function ChatPanel({ trip }: { trip: Trip }) {
 
                   {messages.map((message) => (
                     <div key={message.id} className={cn("flex gap-2", message.role === "user" ? "justify-end" : "justify-start")}>
-                      {message.role === "assistant" && <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)] font-display text-sm text-white">J</span>}
+                      {message.role === "assistant" && <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)] font-display text-sm text-[var(--accent-ink)]">J</span>}
                       <div className={cn(CHAT_MESSAGE_CLASS, message.role === "user" ? "rounded-br-sm bg-[var(--fg)] text-[var(--bg)]" : "rounded-tl-sm bg-[var(--bg-alt)]")}>
                         {message.content ? (
                           <ReactMarkdown
@@ -308,6 +371,10 @@ export default function ChatPanel({ trip }: { trip: Trip }) {
                   ))}
                 </div>
 
+                <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+                  {liveStatus}
+                </p>
+
                 <form
                   onSubmit={(event) => { event.preventDefault(); send(input); }}
                   className="shrink-0 border-t border-[var(--line)] bg-[var(--bg)] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
@@ -330,9 +397,9 @@ export default function ChatPanel({ trip }: { trip: Trip }) {
                       className="max-h-28 min-h-11 flex-1 resize-none rounded-2xl border border-[var(--line)] bg-[var(--bg-alt)] px-4 py-3 text-base outline-none transition focus:border-[var(--accent)]"
                     />
                     {streaming ? (
-                      <button type="button" onClick={() => abortRef.current?.abort()} className="flex h-11 min-w-11 items-center justify-center rounded-2xl bg-[var(--accent)] px-3 text-xs text-white">Parar</button>
+                      <button type="button" onClick={() => abortRef.current?.abort()} className="flex h-11 min-w-11 items-center justify-center rounded-2xl bg-[var(--accent)] px-3 text-xs text-[var(--accent-ink)]">Parar</button>
                     ) : (
-                      <button type="submit" disabled={!input.trim()} aria-label="Enviar" className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--fg)] text-[var(--bg)] transition hover:bg-[var(--accent)] disabled:opacity-35">↑</button>
+                      <button type="submit" disabled={!input.trim()} aria-label="Enviar" className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--fg)] text-[var(--bg)] transition hover:bg-[var(--accent)] hover:text-[var(--accent-ink)] disabled:opacity-35">↑</button>
                     )}
                   </div>
                 </form>

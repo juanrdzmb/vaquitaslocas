@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildTripSourceWorkbook,
   normalizeWorkbookPayload,
   hasExplicitTravelYear,
   serializeWorkbookForPrompt,
   workbookCellCount,
+  workbookImageCount,
   WorkbookValidationError,
 } from "../lib/workbook";
 
@@ -69,5 +71,60 @@ describe("workbook payload", () => {
     ).toBe(false);
     expect(hasExplicitTravelYear("[A1] Viaje del 15 abril 2027")).toBe(true);
     expect(hasExplicitTravelYear("[A1] Salida 15/04/2027")).toBe(true);
+  });
+
+  it("keeps every valid row and embedded image in the canonical source snapshot", () => {
+    const imageA = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB";
+    const imageB = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD";
+    const workbook = normalizeWorkbookPayload({
+      fileName: "Budapest+Praga.xlsx",
+      fileSize: 200_128,
+      sheets: [
+        {
+          name: "Día 2_BU",
+          rows: [
+            {
+              row: 139,
+              cells: [
+                { column: 15, value: "Volver caminando por el Danubio" },
+                { column: 0, value: "Última nota del recorrido" },
+              ],
+            },
+            {
+              row: 24,
+              cells: [
+                { column: 2, value: "Museo" },
+                { column: 0, value: "Castillo de Buda" },
+              ],
+            },
+          ],
+          images: [
+            { id: "mapa", row: 80, column: 4, dataUrl: imageA, alt: "Mapa pegado" },
+            { id: "ruta", row: 25, column: 1, dataUrl: imageB },
+            { id: "descartada", row: 30, column: 0, dataUrl: "data:text/plain;base64,QQ==" },
+          ],
+        },
+        {
+          name: "Día1_PR",
+          rows: [{ row: 1, cells: [{ column: 0, value: "Tren a Praga" }] }],
+          images: [{ id: "billete", row: 2, column: 0, dataUrl: imageA }],
+        },
+      ],
+    });
+
+    const snapshot = buildTripSourceWorkbook(workbook);
+
+    expect(snapshot).toMatchObject({
+      fileName: "Budapest+Praga.xlsx",
+      sheetCount: 2,
+      cellCount: 5,
+      imageCount: 3,
+    });
+    expect(workbookCellCount(workbook)).toBe(5);
+    expect(workbookImageCount(workbook)).toBe(3);
+    expect(snapshot.sheets).toEqual(workbook.sheets);
+    expect(snapshot.sheets[0].rows.map((row) => row.row)).toEqual([24, 139]);
+    expect(snapshot.sheets[0].rows[0].cells.map((cell) => cell.column)).toEqual([0, 2]);
+    expect(snapshot.sheets[0].images?.map((image) => image.id)).toEqual(["ruta", "mapa"]);
   });
 });

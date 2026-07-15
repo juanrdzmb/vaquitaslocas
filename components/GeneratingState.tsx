@@ -15,7 +15,8 @@ type Props = {
 const STEPS = [
   { at: 0.05, label: "Abrir el libro" },
   { at: 0.25, label: "Separar celdas del peso muerto" },
-  { at: 0.72, label: "Revisar todas las hojas" },
+  { at: 0.55, label: "Revisar todas las hojas" },
+  { at: 0.72, label: "Conservar fotos y recorridos" },
   { at: 0.87, label: "Escribir como Juan, no como folleto" },
   { at: 0.962, label: "Comprobar rutas y reservas" },
   { at: 0.99, label: "Guardar la guía" },
@@ -75,7 +76,7 @@ export default function GeneratingState({ fileName, label, progress, phase, onCa
               const active = done && (index === STEPS.length - 1 || bounded < STEPS[index + 1].at);
               return (
                 <li key={step.label} className="flex min-h-10 items-center gap-3 rounded-2xl border border-[var(--line)] bg-[var(--bg-alt)] px-4 py-2">
-                  <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] ${done ? "bg-[var(--accent)] text-white" : "border border-[var(--line)] text-[var(--fg-muted)]"}`}>
+                  <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] ${done ? "bg-[var(--accent)] text-[var(--accent-ink)]" : "border border-[var(--line)] text-[var(--fg-muted)]"}`}>
                     {done && !active ? "✓" : String(index + 1)}
                   </span>
                   <span className={done ? "text-xs" : "text-xs text-[var(--fg-muted)]"}>{step.label}</span>

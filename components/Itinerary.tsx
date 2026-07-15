@@ -12,7 +12,15 @@ function stopKey(day: ItineraryDay, index: number): string {
   return day.stops[index]?.id || `day-${day.dayNumber}-stop-${index}`;
 }
 
-export default function Itinerary({ days, trip }: { days: ItineraryDay[]; trip: Trip }) {
+export default function Itinerary({
+  days,
+  trip,
+  sectionId = "itinerario",
+}: {
+  days: ItineraryDay[];
+  trip: Trip;
+  sectionId?: string;
+}) {
   const [activeDay, setActiveDay] = useState(days[0]?.dayNumber ?? 1);
   const [completed, setCompleted] = useState<Set<string>>(new Set());
   const storageKey = `vaquitas-progress:${trip.id}`;
@@ -53,15 +61,20 @@ export default function Itinerary({ days, trip }: { days: ItineraryDay[]; trip: 
   }
 
   return (
-    <section id="itinerario" className="scroll-mt-24 py-14 md:py-20">
+    <section id={sectionId} className="scroll-mt-24 py-14 md:py-20">
       <div className="container-editorial">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="eyebrow mb-3">El plan, sin pelear con quince pestañas</p>
-            <h2 className="display-md">Día a día</h2>
+            <p className="eyebrow mb-3">Vista práctica de Juan · el texto completo vive en su capítulo</p>
+            <h2 className="display-md">El día a día, en corto</h2>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <PdfButton trip={trip} full />
+            {trip.sourceWorkbook?.sheets.length ? (
+              <a href="#excel-amanda" className="btn-ghost min-h-11 px-4 py-2 text-xs">
+                Ver notas originales
+              </a>
+            ) : null}
             <span className="inline-flex min-h-11 items-center rounded-full border border-[var(--line)] px-4 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--fg-muted)]">
               {completedCount}/{totalStops} hechos
             </span>
@@ -145,7 +158,7 @@ export default function Itinerary({ days, trip }: { days: ItineraryDay[]; trip: 
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
-                            {stop.time && <span className="rounded-full bg-[var(--accent)] px-2.5 py-1 font-mono text-[10px] text-white">{stop.time}</span>}
+                            {stop.time && <span className="rounded-full bg-[var(--accent)] px-2.5 py-1 font-mono text-[10px] text-[var(--accent-ink)]">{stop.time}</span>}
                             {stop.duration && <span className="text-xs text-[var(--fg-muted)]">{stop.duration}</span>}
                             {stop.cost && <span className="text-xs text-[var(--fg-muted)]">{stop.cost}</span>}
                           </div>
@@ -154,7 +167,7 @@ export default function Itinerary({ days, trip }: { days: ItineraryDay[]; trip: 
                         </div>
                       </div>
 
-                      {stop.description && <p className="mt-3 max-w-3xl text-sm leading-relaxed text-[var(--fg-muted)] sm:text-base">{stop.description}</p>}
+                      {stop.description && <p className="mt-3 max-w-3xl whitespace-pre-line text-sm leading-relaxed text-[var(--fg-muted)] sm:text-base">{stop.description}</p>}
                       {stop.tags && stop.tags.length > 0 && (
                         <div className="mt-4 flex flex-wrap gap-2">{stop.tags.map((tag) => <span key={tag} className="rounded-full bg-[var(--bg-alt)] px-3 py-1 text-[11px] text-[var(--fg-muted)]">{tag}</span>)}</div>
                       )}

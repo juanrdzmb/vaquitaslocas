@@ -37,20 +37,24 @@ export default function TripHero({
   const reduceMotion = useReducedMotion();
   const hasMap = hasMapPoints(trip);
   const heroInitial = reduceMotion ? false : { opacity: 0, y: 18 };
-  const primaryTarget = trip.itinerary.length
-    ? "#itinerario"
-    : hasMap
-      ? "#mapa"
-      : trip.recommendations.length
-        ? "#recomendaciones"
-        : "#trip-top";
-  const primaryLabel = trip.itinerary.length
-    ? "Explorar los días"
-    : hasMap
-      ? "Explorar el mapa"
-      : trip.recommendations.length
-        ? "Ver recomendaciones"
-        : "Tu viaje, a mano";
+  const primaryTarget = trip.sourceWorkbook?.sheets.length
+    ? "#excel-amanda"
+    : trip.itinerary.length
+      ? "#itinerario"
+      : hasMap
+        ? "#mapa"
+        : trip.recommendations.length
+          ? "#recomendaciones"
+          : "#trip-top";
+  const primaryLabel = trip.sourceWorkbook?.sheets.length
+    ? "Abrir lo que escribiste"
+    : trip.itinerary.length
+      ? "Explorar los días"
+      : hasMap
+        ? "Explorar el mapa"
+        : trip.recommendations.length
+          ? "Ver recomendaciones"
+          : "Tu viaje, a mano";
 
   return (
     <header id="trip-top" className="trip-hero">
@@ -164,13 +168,35 @@ export default function TripHero({
             aria-label="Saltar a un día del itinerario"
           >
             {trip.itinerary.map((day) => (
-              <a key={day.dayNumber} href={`#dia-${day.dayNumber}`}>
-                <span>{String(day.dayNumber).padStart(2, "0")}</span>
-                <strong>{day.title}</strong>
+              <a
+                key={day.dayNumber}
+                href={`#dia-${day.dayNumber}`}
+                aria-label={`Ir al día ${day.dayNumber}: ${day.title}`}
+              >
+                <span className="trip-day-rail__number">
+                  {String(day.dayNumber).padStart(2, "0")}
+                </span>
+                <span className="trip-day-rail__copy">
+                  <small>Día {String(day.dayNumber).padStart(2, "0")}</small>
+                  <strong>{day.title}</strong>
+                </span>
+                <span className="trip-day-rail__arrow" aria-hidden>↗</span>
               </a>
             ))}
           </motion.nav>
         )}
+      </div>
+
+      <div className="trip-kinetic-ticker" aria-hidden="true">
+        <div>
+          {Array.from({ length: 4 }, (_, index) => (
+            <span key={index}>
+              AMANDA&nbsp;—&nbsp;{trip.destination}&nbsp;—&nbsp;
+              {trip.sourceWorkbook?.cellCount ?? trip.itinerary.length} NOTAS&nbsp;—&nbsp;
+              {trip.visualTheme?.emoji || "✦"}
+            </span>
+          ))}
+        </div>
       </div>
     </header>
   );
