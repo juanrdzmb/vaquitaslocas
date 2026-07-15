@@ -36,25 +36,24 @@ export default function TripHero({
 }) {
   const reduceMotion = useReducedMotion();
   const hasMap = hasMapPoints(trip);
+  const planCount =
+    trip.recommendations.length +
+    trip.itinerary.reduce((total, day) => total + day.stops.length, 0);
   const heroInitial = reduceMotion ? false : { opacity: 0, y: 18 };
-  const primaryTarget = trip.sourceWorkbook?.sheets.length
-    ? "#excel-amanda"
-    : trip.itinerary.length
-      ? "#itinerario"
-      : hasMap
-        ? "#mapa"
-        : trip.recommendations.length
-          ? "#recomendaciones"
-          : "#trip-top";
-  const primaryLabel = trip.sourceWorkbook?.sheets.length
-    ? "Abrir lo que escribiste"
-    : trip.itinerary.length
-      ? "Explorar los días"
-      : hasMap
-        ? "Explorar el mapa"
-        : trip.recommendations.length
-          ? "Ver recomendaciones"
-          : "Tu viaje, a mano";
+  const primaryTarget = trip.itinerary.length
+    ? "#itinerario"
+    : hasMap
+      ? "#mapa"
+      : trip.recommendations.length
+        ? "#recomendaciones"
+        : "#trip-top";
+  const primaryLabel = trip.itinerary.length
+    ? "Explorar los días"
+    : hasMap
+      ? "Explorar el mapa"
+      : trip.recommendations.length
+        ? "Ver recomendaciones"
+        : "Tu viaje, a mano";
 
   return (
     <header id="trip-top" className="trip-hero">
@@ -192,7 +191,7 @@ export default function TripHero({
           {Array.from({ length: 4 }, (_, index) => (
             <span key={index}>
               AMANDA&nbsp;—&nbsp;{trip.destination}&nbsp;—&nbsp;
-              {trip.sourceWorkbook?.cellCount ?? trip.itinerary.length} NOTAS&nbsp;—&nbsp;
+              {planCount} PLANES&nbsp;—&nbsp;
               {trip.visualTheme?.emoji || "✦"}
             </span>
           ))}

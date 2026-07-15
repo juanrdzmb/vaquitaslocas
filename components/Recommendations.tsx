@@ -69,7 +69,7 @@ export default function Recommendations({
     <section id={sectionId} className="container-editorial scroll-mt-24 py-14 md:py-20">
       <div className="grid gap-7 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
         <div>
-          <p className="eyebrow mb-3">Ideas nuevas de Juan · no estaban en tu Excel</p>
+          <p className="eyebrow mb-3">Ideas nuevas de Juan · fuera del plan original</p>
           <h2 className="display-md">Por si te apetece añadir algo</h2>
         </div>
         <p className="max-w-2xl text-base leading-relaxed text-[var(--fg-muted)] lg:justify-self-end">
@@ -143,7 +143,7 @@ export default function Recommendations({
                     )}
                   </div>
                   {item.tags && item.tags.length > 0 && <div className="mb-4 flex flex-wrap gap-1.5">{item.tags.slice(0, 4).map((tag) => <span key={tag} className="rounded-full bg-[var(--bg-alt)] px-2.5 py-1 text-[10px] text-[var(--fg-muted)]">{tag}</span>)}</div>}
-                  <div className={`grid gap-2 ${item.verificationStatus === "verified" ? "grid-cols-2" : "grid-cols-1"}`}>
+                  <div className={`recommendation-actions grid gap-2 ${item.verificationStatus === "verified" ? "grid-cols-2" : "grid-cols-1"}`}>
                     <a href={placeUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-12 items-center justify-center gap-1.5 rounded-full bg-[var(--primary)] px-3 text-xs font-medium text-[var(--on-primary)] transition">
                       <MapPinIcon size={15} weight="duotone" aria-hidden /> {item.verificationStatus === "verified" ? "Ver sitio" : "Comprobar en Maps"}
                     </a>

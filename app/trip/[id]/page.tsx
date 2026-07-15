@@ -15,7 +15,6 @@ import ChatPanel from "@/components/ChatPanel";
 import EasterEggSticker from "@/components/EasterEggSticker";
 import { easterEggFor } from "@/config/easter-eggs";
 import { getDestinationImage } from "@/lib/destination-image";
-import SourceWorkbookSection from "@/components/SourceWorkbookSection";
 import { cache } from "react";
 import { canonicalTripUrl, PRODUCTION_APP_URL } from "@/lib/app-url";
 import RememberTrip from "@/components/RememberTrip";
@@ -81,24 +80,6 @@ export default async function TripPage({ params }: Props) {
     0
   );
   const chapters: TripChapterItem[] = [];
-
-  if (trip.sourceWorkbook?.sheets.length) {
-    chapters.push({
-      id: "excel-amanda",
-      hashes: ["excel-amanda-contenido"],
-      title: "El cuaderno de Amanda",
-      description: "Cada celda, recorrido, restaurante e imagen, sin recortes.",
-      meta: `${trip.sourceWorkbook.sheetCount} hojas · ${trip.sourceWorkbook.cellCount} celdas`,
-      icon: "source",
-      content: (
-        <SourceWorkbookSection
-          source={trip.sourceWorkbook}
-          destination={trip.destination}
-          sectionId="excel-amanda-contenido"
-        />
-      ),
-    });
-  }
 
   if (trip.transport.length || trip.hotels.length || trip.budget.length) {
     chapters.push({
@@ -173,7 +154,7 @@ export default async function TripPage({ params }: Props) {
       id: "recomendaciones",
       hashes: ["recomendaciones-contenido", "antes-de-salir"],
       title: "Ideas extra",
-      description: "Propuestas separadas del Excel y avisos que sí tienen contexto.",
+      description: "Planes nuevos que encajan con Amanda y avisos que sí tienen contexto.",
       meta: `${quantityLabel(trip.recommendations.length, "idea", "ideas")} · ${quantityLabel(trip.tips.length, "aviso", "avisos")}`,
       icon: "ideas",
       content: (

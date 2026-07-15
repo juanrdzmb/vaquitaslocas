@@ -74,7 +74,7 @@ export default function EasterEggSticker({ egg, variant = "floating" }: Props) {
         <motion.div
           initial={reduceMotion ? false : { opacity: 0, y: 8, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          className={`absolute z-40 w-[min(18rem,calc(100vw-2.5rem))] rounded-2xl border border-[var(--line)] bg-[var(--bg)] p-4 text-left shadow-2xl ${
+          className={`easter-egg-reveal absolute z-40 w-[min(18rem,calc(100vw-2.5rem))] rounded-2xl border border-[var(--line)] bg-[var(--bg)] p-4 text-left shadow-2xl ${
             variant === "footer" ? "bottom-full left-0 mb-2" : "left-1/2 top-full mt-1 -translate-x-1/2"
           }`}
           role="status"

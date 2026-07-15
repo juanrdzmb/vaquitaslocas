@@ -83,31 +83,31 @@ export default function FlightsTrains({
               className="overflow-hidden rounded-[1.5rem] border border-[var(--line)] bg-[var(--bg)]"
             >
               <div className="grid gap-5 p-5 sm:p-6 lg:grid-cols-[0.55fr_1.35fr_0.7fr] lg:items-center">
-                <div className="flex items-center gap-4">
-                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--fg)] text-[var(--bg)]" aria-hidden>
+                <div className="flex min-w-0 items-center gap-4">
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--fg)] text-[var(--bg)]" aria-hidden>
                     <TransportIcon type={segment.type} />
                   </span>
-                  <div>
+                  <div className="min-w-0">
                     <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--accent)]">{meta.label}</p>
                     <p className="mt-1 text-sm text-[var(--fg-muted)]">{segment.date ? formatDate(segment.date) : "Fecha por confirmar"}</p>
                     {(segment.provider || segment.serviceNumber) && (
-                      <p className="mt-1 text-xs text-[var(--fg-muted)]">{[segment.provider, segment.serviceNumber].filter(Boolean).join(" · ")}</p>
+                      <p className="mt-1 break-words text-xs text-[var(--fg-muted)] [overflow-wrap:anywhere]">{[segment.provider, segment.serviceNumber].filter(Boolean).join(" · ")}</p>
                     )}
                   </div>
                 </div>
 
                 <div>
-                  <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-                    <div>
-                      <p className="font-display text-xl leading-tight sm:text-2xl">{segment.departure}</p>
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 min-[360px]:gap-3">
+                    <div className="min-w-0">
+                      <p className="break-words font-display text-xl leading-tight [overflow-wrap:anywhere] sm:text-2xl">{segment.departure}</p>
                       <p className="mt-1 font-mono text-xs text-[var(--fg-muted)]">{segment.departureTime || "—"}</p>
                     </div>
-                    <div className="min-w-16 text-center">
+                    <div className="min-w-12 text-center min-[360px]:min-w-16">
                       <p className="font-mono text-[10px] text-[var(--accent)]">{segment.duration || ""}</p>
                       <div className="my-2 flex items-center" aria-hidden><span className="h-px flex-1 bg-[var(--line)]" /><span className="mx-1 text-[var(--accent)]">→</span><span className="h-px flex-1 bg-[var(--line)]" /></div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-display text-xl leading-tight sm:text-2xl">{segment.arrival}</p>
+                    <div className="min-w-0 text-right">
+                      <p className="break-words font-display text-xl leading-tight [overflow-wrap:anywhere] sm:text-2xl">{segment.arrival}</p>
                       <p className="mt-1 font-mono text-xs text-[var(--fg-muted)]">{segment.arrivalTime || "—"}</p>
                     </div>
                   </div>

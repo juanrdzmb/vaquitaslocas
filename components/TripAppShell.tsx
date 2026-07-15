@@ -70,7 +70,6 @@ export default function TripAppShell({
 
       <MobileTripDock
         hasItinerary={trip.itinerary.length > 0}
-        hasSource={Boolean(trip.sourceWorkbook?.sheets.length)}
         hasMap={hasMap}
         hasRecommendations={trip.recommendations.length > 0}
       />

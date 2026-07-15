@@ -55,7 +55,7 @@ export default function TripNowCard({ trip, now }: { trip: Trip; now: number }) 
   let heading = "Todo listo para salir a descubrir";
   let summary = trip.itinerary.length
     ? `${trip.itinerary.length} días ordenados para que tú solo tengas que disfrutarlos.`
-    : "Tu viaje está reunido aquí para que no tengas que volver a perseguir datos por el Excel.";
+    : "Tu viaje está reunido aquí, sin datos desperdigados ni búsquedas absurdas de última hora.";
   let current: Moment = {
     title: firstDay?.title || trip.destination,
     detail: firstDay?.summary || "El plan completo está a un toque.",
@@ -75,7 +75,7 @@ export default function TripNowCard({ trip, now }: { trip: Trip; now: number }) 
     summary = `Tu edición de ${trip.destination} ya está organizada y lista para llevar.`;
     current = {
       title: "Todo en un solo sitio",
-      detail: "Reservas, ruta, presupuesto y recomendaciones sin volver al Excel.",
+      detail: "Reservas, ruta, presupuesto y recomendaciones listas para abrir en el móvil.",
     };
     next = {
       title: firstDay ? `Día ${firstDay.dayNumber} · ${firstDay.title}` : trip.destination,

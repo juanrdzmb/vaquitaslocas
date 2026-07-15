@@ -134,7 +134,7 @@ export default function Budget({ items }: { items: BudgetItem[] }) {
           </div>
         </motion.div>
 
-        <div className="md:col-span-8 overflow-x-auto">
+        <div className="max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] md:col-span-8">
           <table className="w-full min-w-[460px] border-collapse">
             <thead>
               <tr className="border-b border-[var(--line)]">

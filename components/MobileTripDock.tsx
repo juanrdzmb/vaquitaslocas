@@ -6,29 +6,25 @@ import {
   MapTrifoldIcon,
   PathIcon,
   SparkleIcon,
-  TableIcon,
 } from "@phosphor-icons/react";
 
 type DockItem = {
   id: string;
   label: string;
-  icon: "home" | "source" | "route" | "map" | "sparkles";
+  icon: "home" | "route" | "map" | "sparkles";
 };
 
 export default function MobileTripDock({
   hasItinerary,
-  hasSource,
   hasMap,
   hasRecommendations,
 }: {
   hasItinerary: boolean;
-  hasSource: boolean;
   hasMap: boolean;
   hasRecommendations: boolean;
 }) {
   const items = useMemo<DockItem[]>(() => {
     const next: DockItem[] = [{ id: "trip-top", label: "Portada", icon: "home" }];
-    if (hasSource) next.push({ id: "excel-amanda", label: "Tu Excel", icon: "source" });
     if (hasItinerary) {
       next.push({ id: "itinerario", label: "Días", icon: "route" });
     }
@@ -37,7 +33,7 @@ export default function MobileTripDock({
       next.push({ id: "recomendaciones", label: "Ideas", icon: "sparkles" });
     }
     return next;
-  }, [hasItinerary, hasSource, hasMap, hasRecommendations]);
+  }, [hasItinerary, hasMap, hasRecommendations]);
 
   const [active, setActive] = useState(items[0]?.id ?? "trip-top");
 
@@ -85,7 +81,6 @@ export default function MobileTripDock({
 
 function DockIcon({ name }: { name: DockItem["icon"] }) {
   if (name === "home") return <HouseLineIcon size={20} weight="duotone" aria-hidden />;
-  if (name === "source") return <TableIcon size={20} weight="duotone" aria-hidden />;
   if (name === "route") return <PathIcon size={20} weight="duotone" aria-hidden />;
   if (name === "map") return <MapTrifoldIcon size={20} weight="duotone" aria-hidden />;
   return <SparkleIcon size={20} weight="duotone" aria-hidden />;

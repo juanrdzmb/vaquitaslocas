@@ -46,6 +46,10 @@
   }
 
   html {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    overflow-x: clip;
     scroll-behavior: smooth;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -53,7 +57,9 @@
   }
 
   body {
-    min-width: 320px;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
     min-height: 100vh;
     margin: 0;
     overflow-x: hidden;
@@ -101,6 +107,7 @@
 @layer components {
   .container-editorial {
     @apply mx-auto w-full max-w-6xl px-5 sm:px-6 md:px-12;
+    min-width: 0;
     padding-left: max(1.25rem, env(safe-area-inset-left));
     padding-right: max(1.25rem, env(safe-area-inset-right));
   }
@@ -136,7 +143,11 @@
   .btn-primary,
   .btn-ghost {
     @apply inline-flex items-center justify-center gap-2 rounded-full font-sans text-sm font-medium transition-all active:scale-[0.98];
+    max-width: 100%;
     min-height: 44px;
+    overflow-wrap: anywhere;
+    text-align: center;
+    white-space: normal;
   }
 
   .btn-primary {
@@ -1193,10 +1204,15 @@ body > main > .container-editorial:first-child {
 
 .trip-chapter-deck__list {
   display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.75rem;
 }
 
 .trip-chapter {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   scroll-margin-top: 5.5rem;
   overflow: clip;
   border: 1px solid var(--line);
@@ -1309,8 +1325,16 @@ body > main > .container-editorial:first-child {
 }
 
 .trip-chapter__panel {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   border-top: 1px solid var(--line);
   animation: chapter-reveal 420ms var(--ease-fluid) both;
+}
+
+.trip-chapter__panel > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .trip-chapter__panel > section {
@@ -2542,6 +2566,165 @@ body > main > .container-editorial:first-child {
   }
 }
 
+/* Narrow-screen containment --------------------------------------------- */
+.trip-page :where(h1, h2, h3, h4, p, li),
+.travel-library :where(h1, h2, h3, p, li, strong, em, small) {
+  overflow-wrap: anywhere;
+}
+
+.trip-progress__bar {
+  width: auto;
+  max-width: 11rem;
+  min-width: 0;
+  flex: 1 1 5rem;
+}
+
+.trip-progress > span {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+@media (max-width: 359px) {
+  .container-editorial {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+
+  .trip-hero__container {
+    padding-top: 4rem;
+  }
+
+  .trip-hero__meta {
+    gap: 0.5rem 0.7rem;
+  }
+
+  .trip-edition-pill {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .trip-passport {
+    padding: 1rem;
+    border-radius: 0.35rem 2rem 0.35rem 0.35rem;
+    box-shadow: 0.45rem 0.45rem 0 #080808, 0 20px 52px rgba(0, 0, 0, 0.4);
+  }
+
+  .trip-passport__topline {
+    gap: 0.5rem;
+  }
+
+  .trip-passport__stats > div {
+    gap: 0.35rem;
+    padding: 0.65rem;
+  }
+
+  .trip-passport__stats strong {
+    font-size: 1.55rem;
+  }
+
+  .trip-chapter-deck {
+    padding-top: 3.25rem;
+    padding-bottom: 3.25rem;
+  }
+
+  .trip-chapter__button {
+    grid-template-columns: 1.8rem minmax(0, 1fr) 2.25rem;
+    gap: 0.35rem;
+    padding: 0.75rem;
+  }
+
+  .trip-chapter__meta {
+    padding: 0.45rem 0.55rem;
+    font-size: 0.56rem;
+    letter-spacing: 0.035em;
+  }
+
+  .trip-chapter__panel .container-editorial {
+    padding-left: max(0.75rem, env(safe-area-inset-left));
+    padding-right: max(0.75rem, env(safe-area-inset-right));
+  }
+
+  .hotel-dates-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .hotel-card__summary {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hotel-card__map-actions {
+    justify-content: flex-start;
+  }
+
+  .hotel-card__map-actions > a {
+    flex: 1 1 8.5rem;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .recommendation-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .route-candidate {
+    flex-wrap: wrap;
+  }
+
+  .route-candidate > button {
+    flex-basis: 100%;
+  }
+
+  .route-candidate__map {
+    margin-left: auto;
+  }
+
+  .route-order-item {
+    flex-wrap: wrap;
+  }
+
+  .route-order-title {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .route-order-actions {
+    flex-basis: 100%;
+    justify-content: flex-end;
+    padding-top: 0.15rem;
+    border-top: 1px solid var(--line);
+  }
+
+  .travel-book-wrap {
+    width: min(74vw, 14rem);
+  }
+
+  .travel-library__controls {
+    width: calc(100% - 2rem);
+  }
+
+  .trip-footer > div {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.65rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .easter-egg-reveal {
+    position: fixed !important;
+    top: auto !important;
+    right: max(1rem, env(safe-area-inset-right)) !important;
+    bottom: calc(5.75rem + env(safe-area-inset-bottom)) !important;
+    left: max(1rem, env(safe-area-inset-left)) !important;
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    transform: none !important;
+  }
+}
+
 /* Leaflet overrides */
 .leaflet-container {
   z-index: 0;
@@ -2574,6 +2757,8 @@ body > main > .container-editorial:first-child {
 
 .leaflet-popup-content {
   margin: 14px 18px !important;
+  max-width: min(14rem, calc(100vw - 6.5rem));
+  overflow-wrap: anywhere;
   font-family: var(--font-geist-sans), system-ui, sans-serif !important;
 }
 

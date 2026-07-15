@@ -9,7 +9,6 @@ import {
   MapTrifoldIcon,
   PathIcon,
   SparkleIcon,
-  TableIcon,
 } from "@phosphor-icons/react";
 import {
   chapterForHash,
@@ -19,7 +18,6 @@ import {
 } from "@/lib/trip-chapters";
 
 export type TripChapterIcon =
-  | "source"
   | "logistics"
   | "itinerary"
   | "map"
@@ -35,7 +33,6 @@ export type TripChapterItem = TripChapterHashRule & {
 
 function ChapterIcon({ name }: { name: TripChapterIcon }) {
   const props = { size: 24, weight: "duotone" as const, "aria-hidden": true };
-  if (name === "source") return <TableIcon {...props} />;
   if (name === "logistics") return <BedIcon {...props} />;
   if (name === "itinerary") return <PathIcon {...props} />;
   if (name === "map") return <MapTrifoldIcon {...props} />;

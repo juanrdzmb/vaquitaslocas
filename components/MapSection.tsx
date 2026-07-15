@@ -342,9 +342,9 @@ export default function MapSection({
             Aún no hay puntos para dibujar
           </h3>
           <p className="mt-2 max-w-md text-sm leading-relaxed text-[var(--fg-muted)]">
-            El Excel no incluía ubicaciones geolocalizables. Cuando una parada o
-            recomendación tenga coordenadas, aparecerá aquí sin inventar un
-            destino por defecto.
+            Aún no encontramos ubicaciones concretas para estas paradas. En
+            cuanto un plan tenga coordenadas verificadas, aparecerá aquí sin
+            inventarnos un destino por defecto.
           </p>
         </motion.div>
       ) : (

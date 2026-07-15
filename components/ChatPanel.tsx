@@ -20,7 +20,7 @@ export const CHAT_SCROLL_CONTAINER_CLASS =
   "min-h-0 flex-1 touch-pan-y space-y-4 overflow-y-auto overscroll-contain px-4 py-5 [scrollbar-gutter:stable] [-webkit-overflow-scrolling:touch] sm:px-5";
 
 export const CHAT_MESSAGE_CLASS =
-  "min-w-0 max-w-[calc(100%_-_2.5rem)] overflow-hidden break-words rounded-2xl px-4 py-3 text-[15px] leading-relaxed [overflow-wrap:anywhere] [&_img]:h-auto [&_img]:max-w-full [&_img]:rounded-xl";
+  "min-w-0 max-w-[calc(100%_-_2.5rem)] overflow-hidden break-words rounded-2xl px-4 py-3 text-[15px] leading-relaxed [overflow-wrap:anywhere] [&_*]:max-w-full [&_img]:h-auto [&_img]:max-w-full [&_img]:rounded-xl";
 
 export const CHAT_DIALOG_CLASS =
   "fixed inset-x-2 z-[10001] flex min-h-0 flex-col overflow-hidden rounded-[1.75rem] border border-[var(--line)] bg-[var(--bg)] shadow-2xl top-[max(0.5rem,env(safe-area-inset-top))] bottom-[calc(0.5rem+env(safe-area-inset-bottom))] sm:inset-auto sm:bottom-[calc(1.5rem+env(safe-area-inset-bottom))] sm:right-[calc(1.5rem+env(safe-area-inset-right))] sm:h-[min(76dvh,650px)] sm:w-[min(430px,calc(100vw-3rem))]";
@@ -283,7 +283,7 @@ export default function ChatPanel({ trip }: { trip: Trip }) {
               className={CHAT_DIALOG_CLASS}
             >
               <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-                <header className="flex shrink-0 items-center justify-between border-b border-[var(--line)] px-4 py-3 sm:px-5">
+                <header className="flex min-w-0 shrink-0 items-center justify-between gap-2 border-b border-[var(--line)] px-3 py-3 min-[360px]:px-4 sm:px-5">
                   <div className="flex min-w-0 items-center gap-3">
                     <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--accent)] font-display text-xl text-[var(--accent-ink)]">J</span>
                     <div className="min-w-0">
@@ -291,7 +291,7 @@ export default function ChatPanel({ trip }: { trip: Trip }) {
                       <p className="mt-1 truncate text-[10px] text-[var(--fg-muted)]">Copiloto digital · no Juan escribiendo en vivo</p>
                     </div>
                   </div>
-                  <button type="button" onClick={() => setOpen(false)} aria-label="Cerrar" className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--line)] text-xl transition hover:border-[var(--accent)]">×</button>
+                  <button type="button" onClick={() => setOpen(false)} aria-label="Cerrar" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--line)] text-xl transition hover:border-[var(--accent)]">×</button>
                 </header>
 
                 <div
@@ -380,7 +380,7 @@ export default function ChatPanel({ trip }: { trip: Trip }) {
                   className="shrink-0 border-t border-[var(--line)] bg-[var(--bg)] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
                 >
                   {error && <p className="mb-2 px-2 text-xs text-[var(--accent)]" role="alert">{error}</p>}
-                  <div className="flex items-end gap-2">
+                  <div className="flex min-w-0 items-end gap-2">
                     <textarea
                       ref={inputRef}
                       rows={1}
@@ -394,7 +394,7 @@ export default function ChatPanel({ trip }: { trip: Trip }) {
                       }}
                       placeholder="Pregúntale a Juan…"
                       disabled={streaming}
-                      className="max-h-28 min-h-11 flex-1 resize-none rounded-2xl border border-[var(--line)] bg-[var(--bg-alt)] px-4 py-3 text-base outline-none transition focus:border-[var(--accent)]"
+                      className="max-h-28 min-h-11 min-w-0 flex-1 resize-none rounded-2xl border border-[var(--line)] bg-[var(--bg-alt)] px-3 py-3 text-base outline-none transition focus:border-[var(--accent)] min-[360px]:px-4"
                     />
                     {streaming ? (
                       <button type="button" onClick={() => abortRef.current?.abort()} className="flex h-11 min-w-11 items-center justify-center rounded-2xl bg-[var(--accent)] px-3 text-xs text-[var(--accent-ink)]">Parar</button>

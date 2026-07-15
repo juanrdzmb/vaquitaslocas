@@ -65,16 +65,11 @@ export default function Itinerary({
       <div className="container-editorial">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="eyebrow mb-3">Vista práctica de Juan · el texto completo vive en su capítulo</p>
+            <p className="eyebrow mb-3">Los planes de Amanda · ordenados para tenerlos a mano</p>
             <h2 className="display-md">El día a día, en corto</h2>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <PdfButton trip={trip} full />
-            {trip.sourceWorkbook?.sheets.length ? (
-              <a href="#excel-amanda" className="btn-ghost min-h-11 px-4 py-2 text-xs">
-                Ver notas originales
-              </a>
-            ) : null}
             <span className="inline-flex min-h-11 items-center rounded-full border border-[var(--line)] px-4 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--fg-muted)]">
               {completedCount}/{totalStops} hechos
             </span>

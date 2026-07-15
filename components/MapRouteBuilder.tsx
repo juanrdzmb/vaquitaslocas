@@ -193,7 +193,7 @@ export default function MapRouteBuilder({
               la ruta antes del viaje sin que Maps decida empezar desde tu sofá.
             </p>
           </div>
-          <label className="flex min-h-12 shrink-0 items-center gap-3 rounded-full border border-[var(--line)] bg-[var(--bg-alt)] px-4 text-xs">
+          <label className="flex min-h-12 w-full min-w-0 items-center justify-between gap-3 rounded-full border border-[var(--line)] bg-[var(--bg-alt)] px-4 text-xs sm:w-auto sm:shrink-0">
             <span className="text-[var(--fg-muted)]">Moverse</span>
             <select
               value={mode}
@@ -237,7 +237,7 @@ export default function MapRouteBuilder({
               return (
                 <div
                   key={candidate.id}
-                  className={`flex min-h-14 items-center gap-3 rounded-2xl border px-3 py-2 transition ${
+                  className={`route-candidate flex min-h-14 min-w-0 items-center gap-3 rounded-2xl border px-3 py-2 transition ${
                     checked
                       ? "border-[var(--accent)] bg-[var(--accent)]/[0.06]"
                       : "border-[var(--line)] bg-[var(--bg)]"
@@ -273,7 +273,7 @@ export default function MapRouteBuilder({
                     href={googleMapsUrl({ ...candidate, preferCoordinates: true })}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex min-h-11 shrink-0 items-center rounded-full px-3 text-[11px] font-medium text-[var(--accent)] hover:bg-[var(--bg-alt)] hover:underline"
+                    className="route-candidate__map inline-flex min-h-11 shrink-0 items-center rounded-full px-3 text-[11px] font-medium text-[var(--accent)] hover:bg-[var(--bg-alt)] hover:underline"
                     aria-label={`Ver ${candidate.title} en Google Maps`}
                   >
                     Ver lugar ↗
@@ -302,40 +302,42 @@ export default function MapRouteBuilder({
               {selected.map((candidate, index) => (
                 <li
                   key={candidate.id}
-                  className="flex min-h-12 items-center gap-2 rounded-2xl border border-[var(--line)] bg-[var(--bg)] p-2"
+                  className="route-order-item flex min-h-12 min-w-0 items-center gap-2 rounded-2xl border border-[var(--line)] bg-[var(--bg)] p-2"
                 >
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--fg)] font-mono text-[10px] text-[var(--bg)]">
                     {index + 1}
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-xs font-medium">
+                  <span className="route-order-title min-w-0 flex-1 truncate text-xs font-medium">
                     {candidate.title}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => moveCandidate(index, -1)}
-                    disabled={index === 0}
-                    className="flex h-11 w-11 items-center justify-center rounded-full text-sm hover:bg-[var(--bg-alt)] disabled:opacity-25"
-                    aria-label={`Subir ${candidate.title}`}
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => moveCandidate(index, 1)}
-                    disabled={index === selected.length - 1}
-                    className="flex h-11 w-11 items-center justify-center rounded-full text-sm hover:bg-[var(--bg-alt)] disabled:opacity-25"
-                    aria-label={`Bajar ${candidate.title}`}
-                  >
-                    ↓
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => toggleCandidate(candidate)}
-                    className="flex h-11 w-11 items-center justify-center rounded-full text-lg text-[var(--fg-muted)] hover:bg-[var(--bg-alt)] hover:text-[var(--accent)]"
-                    aria-label={`Quitar ${candidate.title} de la ruta`}
-                  >
-                    ×
-                  </button>
+                  <span className="route-order-actions flex shrink-0 items-center">
+                    <button
+                      type="button"
+                      onClick={() => moveCandidate(index, -1)}
+                      disabled={index === 0}
+                      className="flex h-11 w-11 items-center justify-center rounded-full text-sm hover:bg-[var(--bg-alt)] disabled:opacity-25"
+                      aria-label={`Subir ${candidate.title}`}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveCandidate(index, 1)}
+                      disabled={index === selected.length - 1}
+                      className="flex h-11 w-11 items-center justify-center rounded-full text-sm hover:bg-[var(--bg-alt)] disabled:opacity-25"
+                      aria-label={`Bajar ${candidate.title}`}
+                    >
+                      ↓
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleCandidate(candidate)}
+                      className="flex h-11 w-11 items-center justify-center rounded-full text-lg text-[var(--fg-muted)] hover:bg-[var(--bg-alt)] hover:text-[var(--accent)]"
+                      aria-label={`Quitar ${candidate.title} de la ruta`}
+                    >
+                      ×
+                    </button>
+                  </span>
                 </li>
               ))}
             </ol>

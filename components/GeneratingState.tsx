@@ -75,11 +75,11 @@ export default function GeneratingState({ fileName, label, progress, phase, onCa
               const done = bounded >= step.at;
               const active = done && (index === STEPS.length - 1 || bounded < STEPS[index + 1].at);
               return (
-                <li key={step.label} className="flex min-h-10 items-center gap-3 rounded-2xl border border-[var(--line)] bg-[var(--bg-alt)] px-4 py-2">
-                  <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] ${done ? "bg-[var(--accent)] text-[var(--accent-ink)]" : "border border-[var(--line)] text-[var(--fg-muted)]"}`}>
+                <li key={step.label} className="flex min-h-10 min-w-0 items-center gap-3 rounded-2xl border border-[var(--line)] bg-[var(--bg-alt)] px-3 py-2 min-[360px]:px-4">
+                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] ${done ? "bg-[var(--accent)] text-[var(--accent-ink)]" : "border border-[var(--line)] text-[var(--fg-muted)]"}`}>
                     {done && !active ? "✓" : String(index + 1)}
                   </span>
-                  <span className={done ? "text-xs" : "text-xs text-[var(--fg-muted)]"}>{step.label}</span>
+                  <span className={done ? "min-w-0 break-words text-xs" : "min-w-0 break-words text-xs text-[var(--fg-muted)]"}>{step.label}</span>
                 </li>
               );
             })}

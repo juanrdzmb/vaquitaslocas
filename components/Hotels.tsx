@@ -79,7 +79,7 @@ export default function Hotels({ stays, destination }: { stays: HotelStay[]; des
 
                 {stay.address && <p className="mt-4 text-sm leading-relaxed text-[var(--fg-muted)]">{stay.address}</p>}
 
-                <div className="mt-6 grid grid-cols-2 gap-2">
+                <div className="hotel-dates-grid mt-6 grid grid-cols-2 gap-2">
                   <div className="rounded-2xl bg-[var(--bg-alt)] p-4">
                     <p className="font-mono text-[9px] uppercase tracking-[0.15em] text-[var(--fg-muted)]">Check-in</p>
                     <p className="mt-2 font-display text-lg leading-tight">{stay.checkInDate ? formatDate(stay.checkInDate) : "Por confirmar"}</p>
@@ -102,13 +102,13 @@ export default function Hotels({ stays, destination }: { stays: HotelStay[]; des
               </div>
 
               <div className="mt-auto border-t border-[var(--line)] bg-[var(--bg-alt)] p-5 sm:p-6">
-                <div className="flex items-end justify-between gap-4">
-                  <div>
+                <div className="hotel-card__summary flex items-end justify-between gap-4">
+                  <div className="min-w-0">
                     {stay.nights != null && <p className="text-xs text-[var(--fg-muted)]">{stay.nights} {stay.nights === 1 ? "noche" : "noches"}</p>}
-                    <p className="mt-1 font-display text-2xl">{stay.totalPrice == null ? "Precio por confirmar" : formatCurrency(stay.totalPrice, stay.currency)}</p>
+                    <p className="mt-1 break-words font-display text-2xl [overflow-wrap:anywhere]">{stay.totalPrice == null ? "Precio por confirmar" : formatCurrency(stay.totalPrice, stay.currency)}</p>
                     {stay.pricePerNight != null && <p className="mt-1 font-mono text-[10px] text-[var(--fg-muted)]">{formatCurrency(stay.pricePerNight, stay.currency)} / noche</p>}
                   </div>
-                  <div className="flex flex-wrap justify-end gap-2">
+                  <div className="hotel-card__map-actions flex flex-wrap justify-end gap-2">
                     <a href={placeUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-[var(--fg)] px-4 text-xs font-medium text-[var(--bg)] transition hover:bg-[var(--accent)] hover:text-[var(--accent-ink)]">
                       <MapPinIcon size={15} weight="duotone" aria-hidden /> Ver hotel
                     </a>
